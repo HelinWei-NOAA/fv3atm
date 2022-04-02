@@ -22,8 +22,8 @@ module GFS_typedefs
 
        implicit none
 
-      ! To ensure that these values match what's in the physics, array
-      ! sizes are compared in the auto-generated physics caps in debug mode
+      ! To ensure that these values match what's in the physics,
+      ! array sizes are compared during model init in GFS_rrtmg_setup_init()
       private :: NF_AESW, NF_AELW, NSPC, NSPC1, NF_CLDS, NF_VGAS, NF_ALBD, ntrcaerm
       ! from module_radiation_aerosols
       integer, parameter :: NF_AESW = 3
@@ -229,6 +229,19 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: landfrac(:)  => null()  !< land  fraction [0:1]
     real (kind=kind_phys), pointer :: lakefrac(:)  => null()  !< lake  fraction [0:1]
     real (kind=kind_phys), pointer :: lakedepth(:) => null()  !< lake  depth [ m ]
+
+    integer,               pointer :: use_flake  (:) => null()!Flag for flake
+    real (kind=kind_phys), pointer :: h_ML(:)      => null()  !Mixed Layer depth of lakes [m]
+    real (kind=kind_phys), pointer :: t_ML(:)      => null()  !Mixing layer temperature in K 
+    real (kind=kind_phys), pointer :: t_mnw(:)     => null()  !Mean temperature of the water column [K]
+    real (kind=kind_phys), pointer :: h_talb(:)    => null()  !the thermally active layer depth of the bottom sediments [m]
+    real (kind=kind_phys), pointer :: t_talb(:)    => null()  !Temperature at the bottom of the sediment upper layer [K]
+    real (kind=kind_phys), pointer :: t_bot1(:)    => null()  !Temperature at the water-bottom sediment interface [K]
+    real (kind=kind_phys), pointer :: t_bot2(:)    => null()  !Temperature for bottom layer of water [K]
+    real (kind=kind_phys), pointer :: c_t(:)       => null()  !Shape factor of water temperature vertical profile 
+    real (kind=kind_phys), pointer :: T_snow(:)    => null()  !temperature of snow on a lake [K]
+    real (kind=kind_phys), pointer :: T_ice(:)     => null()  !temperature of ice on a lake [K]
+
     real (kind=kind_phys), pointer :: tsfc   (:)   => null()  !< surface air temperature in K
                                                               !< [tsea in gbphys.f]
     real (kind=kind_phys), pointer :: tsfco  (:)   => null()  !< sst in K
@@ -915,7 +928,7 @@ module GFS_typedefs
     integer              :: iopt_snf  !rainfall & snowfall (1-jordan91; 2->bats; 3->noah)
     integer              :: iopt_tbot !lower boundary of soil temperature (1->zero-flux; 2->noah)
     integer              :: iopt_stc  !snow/soil temperature time scheme (only layer 1)
-    integer              :: iopt_trs  !thermal roughness scheme (1-z0h=z0m; 2-czil; 3-ec;4-kb inversed)
+    integer              :: iopt_trs  !thermal roughness scheme (1-z0h=z0m; 2-czil; 3-ec;4-kb inversed)                                            
 
     logical              :: use_ufo         !< flag for gcycle surface option
 
@@ -2000,7 +2013,7 @@ module GFS_typedefs
     integer,               pointer      :: idxday(:)          => null()  !<
     logical,               pointer      :: icy(:)             => null()  !<
     logical,               pointer      :: lake(:)            => null()  !<
-    logical,               pointer      :: use_flake(:)       => null()  !<
+!    logical,               pointer      :: use_flake(:)       => null()  !<
     logical,               pointer      :: ocean(:)           => null()  !<
     integer                             :: ipr                           !<
     integer,               pointer      :: islmsk(:)          => null()  !<
@@ -2375,6 +2388,19 @@ module GFS_typedefs
     allocate (Sfcprop%landfrac (IM))
     allocate (Sfcprop%lakefrac (IM))
     allocate (Sfcprop%lakedepth(IM))
+
+    allocate (Sfcprop%use_flake(IM))
+    allocate (Sfcprop%h_ML     (IM))
+    allocate (Sfcprop%t_ML     (IM))
+    allocate (Sfcprop%t_mnw    (IM))
+    allocate (Sfcprop%h_talb   (IM))
+    allocate (Sfcprop%t_talb   (IM))
+    allocate (Sfcprop%t_bot1   (IM))
+    allocate (Sfcprop%t_bot2   (IM))
+    allocate (Sfcprop%c_t      (IM))
+    allocate (Sfcprop%T_snow   (IM))
+    allocate (Sfcprop%T_ice    (IM))
+
     allocate (Sfcprop%tsfc     (IM))
     allocate (Sfcprop%tsfco    (IM))
     allocate (Sfcprop%tsfcl    (IM))
@@ -2405,6 +2431,19 @@ module GFS_typedefs
     Sfcprop%landfrac  = clear_val
     Sfcprop%lakefrac  = clear_val
     Sfcprop%lakedepth = clear_val
+
+    Sfcprop%use_flake = clear_val
+    Sfcprop%h_ML      = clear_val
+    Sfcprop%t_ML      = clear_val
+    Sfcprop%t_mnw     = clear_val
+    Sfcprop%h_talb    = clear_val
+    Sfcprop%t_talb    = clear_val
+    Sfcprop%t_bot1    = clear_val
+    Sfcprop%t_bot2    = clear_val
+    Sfcprop%c_t       = clear_val
+    Sfcprop%T_snow    = clear_val
+    Sfcprop%T_ice     = clear_val
+
     Sfcprop%tsfc      = clear_val
     Sfcprop%tsfco     = clear_val
     Sfcprop%tsfcl     = clear_val
@@ -7452,7 +7491,7 @@ module GFS_typedefs
     allocate (Interstitial%idxday          (IM))
     allocate (Interstitial%icy             (IM))
     allocate (Interstitial%lake            (IM))
-    allocate (Interstitial%use_flake       (IM))
+!    allocate (Interstitial%use_flake       (IM))
     allocate (Interstitial%ocean           (IM))
     allocate (Interstitial%islmsk          (IM))
     allocate (Interstitial%islmsk_cice     (IM))
@@ -8181,7 +8220,7 @@ module GFS_typedefs
     Interstitial%dry             = .false.
     Interstitial%icy             = .false.
     Interstitial%lake            = .false.
-    Interstitial%use_flake       = .false.
+!    Interstitial%use_flake       = .false.
     Interstitial%ocean           = .false.
     Interstitial%islmsk          = 0
     Interstitial%islmsk_cice     = 0
