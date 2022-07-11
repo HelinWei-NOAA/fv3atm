@@ -7110,6 +7110,12 @@ module GFS_typedefs
       Diag%pahi       = zero
     endif
 
+    if(Model%lsm == Model%lsm_noahmp)then
+      Diag%paha       = zero
+      Diag%twa        = zero
+      Diag%pahi       = zero
+    endif
+
     if (Model%imp_physics == Model%imp_physics_fer_hires) then
        Diag%train      = zero
     end if
