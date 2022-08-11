@@ -2238,9 +2238,15 @@ module GFS_typedefs
     allocate (Sfcprop%f10m   (IM))
     allocate (Sfcprop%tprcp  (IM))
     allocate (Sfcprop%srflag (IM))
-    allocate (Sfcprop%slc    (IM,Model%lsoil))
-    allocate (Sfcprop%smc    (IM,Model%lsoil))
-    allocate (Sfcprop%stc    (IM,Model%lsoil))
+    if (Model%lsm == Model%lsm_noah) then
+      allocate (Sfcprop%slc    (IM,Model%lsoil))
+      allocate (Sfcprop%smc    (IM,Model%lsoil))
+      allocate (Sfcprop%stc    (IM,Model%lsoil))
+    else if (Model%lsm == Model%lsm_noahmp) then
+      allocate (Sfcprop%slc    (IM,Model%lsoil_lsm))
+      allocate (Sfcprop%smc    (IM,Model%lsoil_lsm))
+      allocate (Sfcprop%stc    (IM,Model%lsoil_lsm))
+    endif
 
     Sfcprop%hice   = clear_val
     Sfcprop%weasd  = clear_val
@@ -4091,9 +4097,9 @@ module GFS_typedefs
     ! Allocate variables to store depth/thickness of soil layers
     allocate (Model%zs (Model%lsoil_lsm))
     allocate (Model%dzs(Model%lsoil_lsm))
-    if (Model%lsm==Model%lsm_noah .or. Model%lsm==Model%lsm_noahmp) then
+    if (Model%lsm==Model%lsm_noah) then
       if (Model%lsoil_lsm/=4) then
-        write(0,*) 'Error in GFS_typedefs.F90, number of soil layers must be 4 for Noah/NoahMP'
+        write(0,*) 'Error in GFS_typedefs.F90, number of soil layers must be 4 for Noah'
         stop
       end if
       Model%zs  = (/-0.1_kind_phys, -0.4_kind_phys, -1.0_kind_phys, -2.0_kind_phys/)
@@ -4104,9 +4110,9 @@ module GFS_typedefs
     end if
     ! *DH
 
-    if (Model%lsm==Model%lsm_ruc) then
+    if (Model%lsm==Model%lsm_noahmp .or. Model%lsm==Model%lsm_ruc) then
       if (Model%lsoil_lsm/=9) then
-        write(0,*) 'Error in GFS_typedefs.F90, number of soil layers must be 9 for RUC'
+        write(0,*) 'Error in GFS_typedefs.F90, number of soil layers must be 9 for NoahMP/RUC'
         stop
       end if
     end if
