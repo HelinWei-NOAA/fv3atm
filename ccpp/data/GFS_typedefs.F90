@@ -2238,15 +2238,9 @@ module GFS_typedefs
     allocate (Sfcprop%f10m   (IM))
     allocate (Sfcprop%tprcp  (IM))
     allocate (Sfcprop%srflag (IM))
-    if (Model%lsm == Model%lsm_noah) then
-      allocate (Sfcprop%slc    (IM,Model%lsoil))
-      allocate (Sfcprop%smc    (IM,Model%lsoil))
-      allocate (Sfcprop%stc    (IM,Model%lsoil))
-    else if (Model%lsm == Model%lsm_noahmp) then
-      allocate (Sfcprop%slc    (IM,Model%lsoil_lsm))
-      allocate (Sfcprop%smc    (IM,Model%lsoil_lsm))
-      allocate (Sfcprop%stc    (IM,Model%lsoil_lsm))
-    endif
+    allocate (Sfcprop%slc    (IM,Model%lsoil))
+    allocate (Sfcprop%smc    (IM,Model%lsoil))
+    allocate (Sfcprop%stc    (IM,Model%lsoil))
 
     Sfcprop%hice   = clear_val
     Sfcprop%weasd  = clear_val
