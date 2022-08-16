@@ -1276,7 +1276,7 @@ module FV3GFS_io_mod
       sfc_name3(1) = 'stc'
       sfc_name3(2) = 'smc'
       sfc_name3(3) = 'slc'
-      if (Model%lsm == Model%lsm_noahmp) then
+    else if (Model%lsm == Model%lsm_noahmp) then
         sfc_name3(1) = 'tslb'
         sfc_name3(2) = 'smois'
         sfc_name3(3) = 'sh2o'
@@ -1285,7 +1285,6 @@ module FV3GFS_io_mod
         sfc_name3(6) = 'tsnoxy'
         sfc_name3(7) = 'smoiseq'
         sfc_name3(8) = 'zsnsoxy'
-      endif
     else if (Model%lsm == Model%lsm_ruc) then
       !--- names of the 2D variables to save
       sfc_name3(1) = 'tslb'
@@ -1659,6 +1658,36 @@ module FV3GFS_io_mod
             Sfcprop(nb)%smc(ix,lsoil) = sfc_var3(i,j,lsoil,2)   !--- smc
             Sfcprop(nb)%slc(ix,lsoil) = sfc_var3(i,j,lsoil,3)   !--- slc
           enddo
+
+! coldstart 9 soil levels noahmp from 4 soil levels noah
+          if (Model%lsm == Model%lsm_noahmp) then
+
+           do lsoil = 1,4
+             Sfcprop(nb)%tslb(ix,lsoil) = sfc_var3(i,j,1,1) !--- tslb
+             Sfcprop(nb)%smois(ix,lsoil) = sfc_var3(i,j,1,2) !--- smois
+             Sfcprop(nb)%sh2o(ix,lsoil) = sfc_var3(i,j,1,3) !--- sh2o
+           enddo
+
+           do lsoil = 5,5
+             Sfcprop(nb)%tslb(ix,lsoil) = sfc_var3(i,j,2,1) !--- tslb
+             Sfcprop(nb)%smois(ix,lsoil) = sfc_var3(i,j,2,2) !--- smois
+             Sfcprop(nb)%sh2o(ix,lsoil) = sfc_var3(i,j,2,3) !--- sh2o
+           enddo
+           
+           do lsoil = 6,7
+             Sfcprop(nb)%tslb(ix,lsoil) = sfc_var3(i,j,3,1) !--- tslb
+             Sfcprop(nb)%smois(ix,lsoil) = sfc_var3(i,j,3,2) !--- smois
+             Sfcprop(nb)%sh2o(ix,lsoil) = sfc_var3(i,j,3,3) !--- sh2o
+           enddo
+
+           do lsoil = 8,9
+             Sfcprop(nb)%tslb(ix,lsoil) = sfc_var3(i,j,4,1) !--- tslb
+             Sfcprop(nb)%smois(ix,lsoil) = sfc_var3(i,j,4,2) !--- smois
+             Sfcprop(nb)%sh2o(ix,lsoil) = sfc_var3(i,j,4,3) !--- sh2o
+           enddo
+
+          endif
+            
 
          elseif (Model%lsm == Model%lsm_noahmp) then
 
