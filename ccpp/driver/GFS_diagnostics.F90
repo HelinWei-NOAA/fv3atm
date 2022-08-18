@@ -3168,7 +3168,7 @@ module GFS_diagnostics
     enddo
   endif
 
-  if (Model%lsm == Model%lsm_ruc) then
+  if (Model%lsm == Model%lsm_ruc .or. Model%lsm == Model%lsm_noahmp) then
     do num = 1,Model%lsoil_lsm
       write (xtra,'(i1)') num
       idx = idx + 1
@@ -3206,7 +3206,7 @@ module GFS_diagnostics
     enddo
   endif
 
-  if (Model%lsm == Model%lsm_ruc) then
+  if (Model%lsm == Model%lsm_ruc .or. Model%lsm == Model%lsm_noahmp) then
     do num = 1,Model%lsoil_lsm
       write (xtra,'(i1)') num
       idx = idx + 1
@@ -3236,7 +3236,7 @@ module GFS_diagnostics
     enddo
   endif
 
-    if (Model%lsm == Model%lsm_ruc) then
+    if (Model%lsm == Model%lsm_ruc .or. Model%lsm == Model%lsm_noahmp) then
       do num = 1,Model%lsoil_lsm
         write (xtra,'(i1)') num
         idx = idx + 1

@@ -2431,6 +2431,15 @@ module GFS_typedefs
     allocate(Sfcprop%semisbase(IM))
     Sfcprop%semisbase = clear_val
 
+    if (Model%lsm == Model%lsm_noahmp) then
+       allocate (Sfcprop%sh2o            (IM,Model%lsoil_lsm))
+       allocate (Sfcprop%smois           (IM,Model%lsoil_lsm))
+       allocate (Sfcprop%tslb            (IM,Model%lsoil_lsm))
+       Sfcprop%sh2o            = clear_val
+       Sfcprop%smois           = clear_val
+       Sfcprop%tslb            = clear_val
+    endif
+
     if (Model%lsm == Model%lsm_ruc) then
        ! For land surface models with different numbers of levels than the four NOAH levels
        allocate (Sfcprop%wetness         (IM))

@@ -1276,6 +1276,16 @@ module FV3GFS_io_mod
       sfc_name3(1) = 'stc'
       sfc_name3(2) = 'smc'
       sfc_name3(3) = 'slc'
+      if (Model%lsm == Model%lsm_noahmp) then
+        sfc_name3(1) = 'tslb'
+        sfc_name3(2) = 'smois'
+        sfc_name3(3) = 'sh2o'
+        sfc_name3(4) = 'snicexy'
+        sfc_name3(5) = 'snliqxy'
+        sfc_name3(6) = 'tsnoxy'
+        sfc_name3(7) = 'smoiseq'
+        sfc_name3(8) = 'zsnsoxy'
+       endif
     else if (Model%lsm == Model%lsm_noahmp) then
         sfc_name3(1) = 'tslb'
         sfc_name3(2) = 'smois'
@@ -2583,9 +2593,9 @@ module FV3GFS_io_mod
 ! 5 Noah MP 3D
         else if (Model%lsm == Model%lsm_noahmp) then
           do lsoil = 1,Model%lsoil_lsm
-            sfc_var3(i,j,lsoil,1) = Sfcprop(nb)%stc(ix,lsoil) !--- stc
-            sfc_var3(i,j,lsoil,2) = Sfcprop(nb)%smc(ix,lsoil) !--- smc
-            sfc_var3(i,j,lsoil,3) = Sfcprop(nb)%slc(ix,lsoil) !--- slc
+            sfc_var3(i,j,lsoil,1) = Sfcprop(nb)%tslb(ix,lsoil) !--- stc
+            sfc_var3(i,j,lsoil,2) = Sfcprop(nb)%smois(ix,lsoil) !--- smc
+            sfc_var3(i,j,lsoil,3) = Sfcprop(nb)%sh2o(ix,lsoil) !--- slc
           enddo
 
           do lsoil = -2,0
