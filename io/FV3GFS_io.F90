@@ -985,7 +985,10 @@ module FV3GFS_io_mod
       allocate(sfc_var3ice(nx,ny,Model%kice))
 
       if (Model%lsm == Model%lsm_noah .or. (.not.warm_start)) then
-        allocate(sfc_var3(nx,ny,Model%lsoil,nvar_s3))
+!       allocate(sfc_var3(nx,ny,Model%lsoil,nvar_s3))
+!      if (Model%lsm == Model%lsm_noahmp) then
+        allocate(sfc_var3(nx,ny,Model%lsoil_lsm,nvar_s3))
+!      endif
       else if (Model%lsm == Model%lsm_noahmp .or. Model%lsm == Model%lsm_ruc) then
         allocate(sfc_var3(nx,ny,Model%lsoil_lsm,nvar_s3))
       end if
