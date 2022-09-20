@@ -4108,8 +4108,8 @@ module GFS_typedefs
       Model%zs  = (/-0.1_kind_phys, -0.4_kind_phys, -1.0_kind_phys, -2.0_kind_phys/)
       Model%dzs = (/ 0.1_kind_phys,  0.3_kind_phys,  0.6_kind_phys,  1.0_kind_phys/)
     elseif (Model%lsm==Model%lsm_noahmp) then
-      Model%zs  = (/-0.005_kind_phys, -0.01_kind_phys, -0.04_kind_phys, -0.1_kind_phys, -0.3_kind_phys, -0.6_kind_phys, -1.0_kind_phys, -1.6_kind_phys, -3.0_kind_phys/)
-      Model%dzs = (/ 0.005_kind_phys,  0.005_kind_phys,  0.03_kind_phys, 0.06_kind_phys, 0.2_kind_phys, 0.3_kind_phys, 0.4_kind_phys, 0.6_kind_phys, 1.4_kind_phys/)
+      Model%zs  = (/-0.02_kind_phys, -0.06_kind_phys, -0.14_kind_phys, -0.46_kind_phys, -0.74_kind_phys, -1.26_kind_phys, -1.94_kind_phys, -4.06_kind_phys, -5.06_kind_phys/)
+      Model%dzs = (/ 0.02_kind_phys,  0.04_kind_phys,  0.08_kind_phys, 0.32_kind_phys, 0.28_kind_phys, 0.52_kind_phys, 0.68_kind_phys, 2.12_kind_phys, 1.0_kind_phys/)
     elseif (Model%lsm==Model%lsm_ruc) then
       Model%zs  = clear_val
       Model%dzs = clear_val
