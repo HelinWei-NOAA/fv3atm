@@ -1324,7 +1324,6 @@ module FV3GFS_io_mod
     call register_restart_field(Sfc_restart, sfc_name3(0), var3_p, dimensions=(/'xaxis_1', 'yaxis_1', 'zaxis_1', 'Time   '/),&
                               &is_optional=.true.)
 
-      print*,'stop here',warm_start,Model%lsm,sfc_name3,is_lsoil,lsoil,'zaxis_1=','zaxis_1','zaxis_2','zaxis_3'
     do num = 1,nvar_s3
        var3_p => sfc_var3(:,:,:,num)
        if ( warm_start ) then
@@ -2048,7 +2047,7 @@ module FV3GFS_io_mod
     nx  = (iec - isc + 1)
     ny  = (jec - jsc + 1)
 
-    if (Model%lsm == Model%lsm_ruc) then
+    if (Model%lsm == Model%lsm_ruc .or. Model%lsm == Model%lsm_noahmp) then
       if (allocated(sfc_name2)) then
         ! Re-allocate if one or more of the dimensions don't match
         if (size(sfc_name2).ne.nvar2m+nvar2o+nvar2mp+nvar2r .or. &
@@ -2059,6 +2058,11 @@ module FV3GFS_io_mod
           deallocate(sfc_name3)
           deallocate(sfc_var2)
           deallocate(sfc_var3)
+         if(Model%lsm == Model%lsm_noahmp) then
+          deallocate(sfc_var3sn)
+          deallocate(sfc_var3eq)
+          deallocate(sfc_var3zn)
+         endif 
        end if
       end if
     end if
@@ -2130,7 +2134,7 @@ module FV3GFS_io_mod
         call write_data(Sfc_restart, 'zaxis_3', buffer)
         deallocate(buffer)
 
-        call register_axis(Sfc_restart, 'zaxis_4', dimension_length=7)
+        call register_axis(Sfc_restart, 'zaxis_4', dimension_length=12)
         call register_field(Sfc_restart, 'zaxis_4', 'double', (/'zaxis_4'/))
         call register_variable_attribute(Sfc_restart, 'zaxis_4', 'cartesian_axis' ,'Z', str_len=1)
         allocate(buffer(7))
