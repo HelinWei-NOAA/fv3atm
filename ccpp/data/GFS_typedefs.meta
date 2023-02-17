@@ -4369,7 +4369,7 @@
   dimensions = ()
   type = real
   kind = kind_phys
-[lkm]
+[lake_model_option]
   standard_name = control_for_lake_surface_scheme
   long_name = flag for lake surface model
   units = flag

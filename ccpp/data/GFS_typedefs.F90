@@ -356,8 +356,19 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: d_conv (:)   => null()  !< nst_fld%d_conv  thickness of Free Convection Layer (FCL)
     real (kind=kind_phys), pointer :: ifd    (:)   => null()  !< nst_fld%ifd     index to start DTM run or not
     real (kind=kind_phys), pointer :: dt_cool(:)   => null()  !< nst_fld%dt_cool Sub layer cooling amount
-    real (kind=kind_phys), pointer :: qrain  (:)   => null()  !< nst_fld%qrain   sensible heat flux due to rainfall (watts)
-
+    real (kind=kind_phys), pointer :: qrain  (:)   => null()  !< nst_fld%qrain  sensible heat flux due to rainfall (watts)
+    ! Flake model 10 variables 
+    integer,               pointer :: use_flake  (:) => null()!Flag for flake
+    real (kind=kind_phys), pointer :: h_ML  (:)   => null()   !< lake_model_option%h_ML - depth of lake mixing layer (m)
+    real (kind=kind_phys), pointer :: t_ML  (:)   => null()   !< lake_model_option%t_ML - temperature of lake mixing layer(K)
+    real (kind=kind_phys), pointer :: t_mnw  (:)   => null()  !< lake_model_option%t_mnw - thee mean temperature of the water column(K)
+    real (kind=kind_phys), pointer :: h_talb  (:)   => null() !< lake_model_option%h_talb - the depth of the thermally active layer of the bottom sediment(m)
+    real (kind=kind_phys), pointer :: t_talb  (:)   => null() !< lake_model_option%t_talb - the temperature at the bottom of the sediment upper layer (K)
+    real (kind=kind_phys), pointer :: t_bot1  (:)   => null() !< lake_model_option%t_bot1 - the temperature at the water-bottom sediment interface (K)
+    real (kind=kind_phys), pointer :: t_bot2  (:)   => null() !< lake_model_option%t_bot2 - the temperature at the lake bottom layer water (K)
+    real (kind=kind_phys), pointer :: c_t  (:)   => null()    !< lake_model_option%c_t - the shape factor of water temperature vertical profile
+    real (kind=kind_phys), pointer :: T_snow  (:)   => null() !< lake_model_option%T_snow - temperature of snow on a lake(K)
+    real (kind=kind_phys), pointer :: T_ice  (:)   => null()  !< lake_model_option%T_ice - temperature of ice on a lake(K)
     ! Soil properties for RUC LSM (number of levels different from NOAH 4-layer model)
     real (kind=kind_phys), pointer :: wetness(:)         => null()  !< normalized soil wetness for lsm
     real (kind=kind_phys), pointer :: sh2o(:,:)          => null()  !< volume fraction of unfrozen soil moisture for lsm
@@ -961,7 +972,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: sfenth          !< enthalpy flux factor 0 zot via charnock ..>0 zot enhanced>15m/s
 
 !--- flake model parameters
-    integer              :: lkm             !< flag for flake model
+    integer              :: lake_model_option             !< flag for flake model
 
 !--- tuning parameters for physical parameterizations
     logical              :: ras             !< flag for ras convection scheme
@@ -2283,6 +2294,31 @@ module GFS_typedefs
       Sfcprop%dt_cool = zero
       Sfcprop%qrain   = zero
     endif
+! Flake parameter allocation 
+    allocate (Sfcprop%use_flake(IM))
+    allocate (Sfcprop%h_ML     (IM))
+    allocate (Sfcprop%t_ML     (IM))
+    allocate (Sfcprop%t_mnw    (IM))
+    allocate (Sfcprop%h_talb   (IM))
+    allocate (Sfcprop%t_talb   (IM))
+    allocate (Sfcprop%t_bot1   (IM))
+    allocate (Sfcprop%t_bot2   (IM))
+    allocate (Sfcprop%c_t      (IM))
+    allocate (Sfcprop%T_snow   (IM))
+    allocate (Sfcprop%T_ice    (IM))
+
+    Sfcprop%use_flake = clear_val
+    Sfcprop%h_ML      = clear_val
+    Sfcprop%t_ML      = clear_val
+    Sfcprop%t_mnw     = clear_val
+    Sfcprop%h_talb    = clear_val
+    Sfcprop%t_talb    = clear_val
+    Sfcprop%t_bot1    = clear_val
+    Sfcprop%t_bot2    = clear_val
+    Sfcprop%c_t       = clear_val
+    Sfcprop%T_snow    = clear_val
+    Sfcprop%T_ice     = clear_val
+
     if (Model%lsm == Model%lsm_noah) then
       allocate (Sfcprop%xlaixy   (IM))
       allocate (Sfcprop%rca      (IM))
@@ -3147,7 +3183,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: sfenth         = 0.0                      !< enthalpy flux factor 0 zot via charnock ..>0 zot enhanced>15m/s
 
 !--- flake model parameters
-    integer              :: lkm            =  0                       !< flag for flake model - default no flake
+    integer              :: lake_model_option            =  0                       !< flag for flake model - default no flake
 
 !--- tuning parameters for physical parameterizations
     logical              :: ras            = .false.                  !< flag for ras convection scheme
@@ -3516,7 +3552,7 @@ module GFS_typedefs
                           !    GFDL surface layer options
                                lcurr_sf, pert_cd, ntsflg, sfenth,                           &
                           !--- lake model control
-                               lkm,                                                         &
+                               lake_model_option,                                                         &
                           !--- physical parameterizations
                                ras, trans_trac, old_monin, cnvgwd, mstrat, moist_adj,       &
                                cscnv, cal_pre, do_aw, do_shoc, shocaftcnv, shoc_cld,        &
@@ -4161,7 +4197,7 @@ module GFS_typedefs
     Model%sfenth           = sfenth
 
 !--- flake  model parameters
-    Model%lkm              = lkm
+    Model%lake_model_option              = lake_model_option 
 
 ! Noah MP options from namelist
 !
@@ -5086,7 +5122,7 @@ module GFS_typedefs
               'min_lake_height=',Model%min_lake_height
 
       print *, 'flake model parameters'
-      print *, 'lkm                : ', Model%lkm
+      print *, 'lake_model_option                : ', Model%lake_model_option
 
       if (Model%nstf_name(1) > 0 ) then
         print *,' NSSTM is active '
@@ -5941,7 +5977,7 @@ module GFS_typedefs
       print *, ' sfenth            : ', Model%sfenth
       print *, ' '
       print *, 'flake model parameters'
-      print *, 'lkm                : ', Model%lkm
+      print *, 'lake_model_option                : ', Model%lake_model_option
       print *, ' '
       print *, 'tuning parameters for physical parameterizations'
       print *, ' ras               : ', Model%ras
