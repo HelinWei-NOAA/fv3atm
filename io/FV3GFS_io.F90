@@ -220,6 +220,10 @@ module FV3GFS_io_mod
    if (Model%nstf_name(1) > 0) then
      nsfcprop2d = nsfcprop2d + 16
    endif
+    print *,'in phys, lake_model_option=',Model%lake_model_option
+   if(Model%lake_model_option == 1 .or. Model%lake_model_option == 2 ) then
+     nsfcprop2d = nsfcprop2d + 10
+   endif
 
    allocate (temp2d(isc:iec,jsc:jec,nsfcprop2d+Model%ntot2d+Model%nctp))
    allocate (temp3d(isc:iec,jsc:jec,1:lev,14+Model%ntot3d+2*ntr))
@@ -457,6 +461,19 @@ module FV3GFS_io_mod
          call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%dt_cool)
          call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%qrain)
        endif nstf_name_choice
+
+       lake_model_choice: if (Model%lake_model_option == 1 .or.  Model%lake_model_option == 2 )  then
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%h_ML)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%t_ML)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%t_mnw)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%h_talb)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%t_talb)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%t_bot1)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%t_bot2)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%c_t)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%T_snow)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%T_ice)
+       endif lake_model_choice 
 
        call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Tbd%phy_f2d)
        call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Tbd%phy_fctd)
@@ -816,6 +833,19 @@ module FV3GFS_io_mod
       else if (Model%lsm == Model%lsm_ruc .and. Model%rdlai) then
         nt=nt+1 ; sfc_name2(nt) = 'lai'
       endif
+
+      if(Model%lake_model_option == 1 .or. Model%lake_model_option == 2 ) then
+        nt=nt+1 ; sfc_name2(nt)  = 'h_ML'
+        nt=nt+1 ; sfc_name2(nt)  = 't_ML'
+        nt=nt+1 ; sfc_name2(nt)  = 't_mnw'
+        nt=nt+1 ; sfc_name2(nt)  = 'h_talb'
+        nt=nt+1 ; sfc_name2(nt)  = 't_talb'
+        nt=nt+1 ; sfc_name2(nt)  = 't_bot1'
+        nt=nt+1 ; sfc_name2(nt)  = 't_bot2'
+        nt=nt+1 ; sfc_name2(nt)  = 'c_t'
+        nt=nt+1 ; sfc_name2(nt)  = 'T_snow'
+        nt=nt+1 ; sfc_name2(nt)  = 'T_ice'
+      endif
    end subroutine fill_sfcprop_names
 
 !----------------------------------------------------------------------
@@ -845,6 +875,7 @@ module FV3GFS_io_mod
     integer :: id_restart
     integer :: nvar_o2, nvar_s2m, nvar_s2o, nvar_s3
     integer :: nvar_oro_ls_ss
+    integer :: nvar_s2me, nvar_s2l
     integer :: nvar_s2r, nvar_s2mp, nvar_s3mp, isnow
     integer :: nvar_emi, nvar_dust12m, nvar_gbbepx
     integer, allocatable :: ii1(:), jj1(:)
@@ -996,6 +1027,7 @@ module FV3GFS_io_mod
 
         Sfcprop(nb)%landfrac(ix)  = -9999.0
         Sfcprop(nb)%lakefrac(ix)  = -9999.0
+        Sfcprop(nb)%lakedepth(ix) = -9999.0
 
         Sfcprop(nb)%landfrac(ix)  = oro_var2(i,j,17) !land frac [0:1]
         Sfcprop(nb)%lakefrac(ix)  = oro_var2(i,j,18) !lake frac [0:1]
@@ -1012,6 +1044,12 @@ module FV3GFS_io_mod
     endif
     if (Model%cplwav) then
       nvar_s2m = nvar_s2m + 1
+    endif
+!For lake
+    if(Model%lake_model_option == 1 .or. Model%lake_model_option == 2 ) then
+        nvar_s2l = 10
+    else
+        nvar_s2l = 0
     endif
 
     !--- deallocate containers and free restart container
@@ -1394,6 +1432,19 @@ module FV3GFS_io_mod
             end if
          enddo
       endif ! noahmp
+! Flake
+      if(Model%lake_model_option == 1 .or. Model%lake_model_option == 2 ) then
+        mand = .false.
+        do num = nvar_s2me+1,nvar_s2me+nvar_s2l
+          var2_p => sfc_var2(:,:,num)
+          if(is_lsoil) then
+             call register_restart_field(Sfc_restart, sfc_name2(num),var2_p,dimensions=(/'lat','lon'/), is_optional=.not.mand)
+          else
+             call register_restart_field(Sfc_restart, sfc_name2(num),var2_p,dimensions=(/'Time   ','yaxis_1','xaxis_1'/), is_optional=.not.mand)
+         endif
+       enddo
+      endif  !Flake
+
       nullify(var2_p)
    endif  ! if not allocated
 
@@ -1764,6 +1815,20 @@ module FV3GFS_io_mod
           call copy_to_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%rechxy)
         endif
 
+! For Flake (lake_model_option=1/2)
+        if(Model%lake_model_option == 1 .or. Model%lake_model_option == 2 ) then
+          call copy_to_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%h_ML)
+          call copy_to_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%t_ML)
+          call copy_to_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%t_mnw)
+          call copy_to_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%h_talb)
+          call copy_to_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%t_talb)
+          call copy_to_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%t_bot1)
+          call copy_to_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%t_bot2)
+          call copy_to_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%c_t)
+          call copy_to_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%T_snow)
+          call copy_to_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%T_ice)
+        endif
+
         if (Model%lsm == Model%lsm_noah .or. Model%lsm == Model%lsm_noahmp .or. (.not.warm_start)) then
           !--- 3D variables
           nt=0
@@ -2064,6 +2129,7 @@ module FV3GFS_io_mod
     integer :: id_restart
     integer :: nvar2m, nvar2o, nvar3
     integer :: nvar2r, nvar2mp, nvar3mp
+    integer :: nvar2me, nvar2l          !for  lake
     logical :: mand
     integer, allocatable :: ii1(:), jj1(:)
     character(len=32) :: fn_srf = 'sfc_data.nc'
@@ -2105,6 +2171,15 @@ module FV3GFS_io_mod
     if (Model%lsm == Model%lsm_noahmp) then
       nvar2mp = 29
       nvar3mp = 5
+    endif
+
+!For Flake
+    if(Model%lake_model_option == 1 .or. Model%lake_model_option == 2 ) then
+        nvar2l = 10
+        nvar2me = nvar2m
+    else
+        nvar2l = 0
+        nvar2me = 0
     endif
 
     isc = Atm_block%isc
@@ -2205,9 +2280,9 @@ module FV3GFS_io_mod
 
     if (.not. allocated(sfc_name2)) then
       !--- allocate the various containers needed for restarts
-      allocate(sfc_name2(nvar2m+nvar2o+nvar2mp+nvar2r))
+      allocate(sfc_name2(nvar2m+nvar2o+nvar2mp+nvar2r+nvar2l))
       allocate(sfc_name3(0:nvar3+nvar3mp))
-      allocate(sfc_var2(nx,ny,nvar2m+nvar2o+nvar2mp+nvar2r))
+      allocate(sfc_var2(nx,ny,nvar2m+nvar2o+nvar2mp+nvar2r+nvar2l))
       if (Model%lsm == Model%lsm_noah .or. Model%lsm == Model%lsm_noahmp) then
         allocate(sfc_var3(nx,ny,Model%lsoil,nvar3))
       elseif (Model%lsm == Model%lsm_ruc) then
@@ -2246,6 +2321,7 @@ module FV3GFS_io_mod
          call register_restart_field(Sfc_restart, sfc_name2(num), var2_p, dimensions=(/'xaxis_1', 'yaxis_1', 'Time   '/) )
       endif
    enddo
+       print*,'come here here, nvar2m,nvar2o,nvar2r,nvar2mp=',nvar2m,nvar2o,nvar2r,nvar2mp
    if (Model%nstf_name(1) > 0) then
       mand = .false.
       if (Model%nstf_name(2) ==0) mand = .true.
@@ -2268,6 +2344,17 @@ module FV3GFS_io_mod
          call register_restart_field(Sfc_restart, sfc_name2(num), var2_p, dimensions=(/'xaxis_1', 'yaxis_1', 'Time   '/),&
                                     &is_optional=.not.mand)
       enddo
+   endif
+
+!Flake
+   nvar2me=nvar2m+nvar2o+nvar2r+nvar2mp
+   if(Model%lake_model_option == 1 .or. Model%lake_model_option == 2 ) then
+      mand = .false.
+        do num = nvar2me+1,nvar2me+nvar2l
+         var2_p => sfc_var2(:,:,num)
+         call register_restart_field(Sfc_restart, sfc_name2(num),var2_p,dimensions=(/'xaxis_1', 'yaxis_1', 'Time   '/),&
+                                     &is_optional=.not.mand)
+       enddo
    endif
    nullify(var2_p)
 
@@ -2473,6 +2560,21 @@ module FV3GFS_io_mod
          call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%deeprechxy)
          call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%rechxy)
        endif
+
+!Flake
+       if(Model%lake_model_option == 1 .or. Model%lake_model_option == 2 ) then
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%h_ML)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%t_ML)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%t_mnw)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%h_talb)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%t_talb)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%t_bot1)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%t_bot2)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%c_t)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%T_snow)
+         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,sfc_var2,Sfcprop(nb)%T_ice)
+        endif
+
        do k = 1,Model%kice
          do ix = 1, Atm_block%blksz(nb)
            ice=Sfcprop(nb)%tiice(ix,k)

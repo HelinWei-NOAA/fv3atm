@@ -210,6 +210,18 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: landfrac(:)  => null()  !< land  fraction [0:1]
     real (kind=kind_phys), pointer :: lakefrac(:)  => null()  !< lake  fraction [0:1]
     real (kind=kind_phys), pointer :: lakedepth(:) => null()  !< lake  depth [ m ]
+
+    real (kind=kind_phys), pointer :: h_ML(:)      => null()  !Mixed Layer depth of lakes [m]
+    real (kind=kind_phys), pointer :: t_ML(:)      => null()  !Mixing layer temperature in K
+    real (kind=kind_phys), pointer :: t_mnw(:)     => null()  !Mean temperature of the water column [K]
+    real (kind=kind_phys), pointer :: h_talb(:)    => null()  !the thermally active layer depth of the bottom sediments [m]
+    real (kind=kind_phys), pointer :: t_talb(:)    => null()  !Temperature at the bottom of the sediment upper layer [K]
+    real (kind=kind_phys), pointer :: t_bot1(:)    => null()  !Temperature at the water-bottom sediment interface [K]
+    real (kind=kind_phys), pointer :: t_bot2(:)    => null()  !Temperature for bottom layer of water [K]
+    real (kind=kind_phys), pointer :: c_t(:)       => null()  !Shape factor of water temperature vertical profile
+    real (kind=kind_phys), pointer :: T_snow(:)    => null()  !temperature of snow on a lake [K]
+    real (kind=kind_phys), pointer :: T_ice(:)     => null()  !temperature of ice on a lake [K]
+
     real (kind=kind_phys), pointer :: tsfc   (:)   => null()  !< surface air temperature in K
                                                               !< [tsea in gbphys.f]
     real (kind=kind_phys), pointer :: tsfco  (:)   => null()  !< sst in K
@@ -963,8 +975,12 @@ module GFS_typedefs
     integer              :: ntsflg          !< flag for updating skin temperature in the GFDL surface layer scheme
     real(kind=kind_phys) :: sfenth          !< enthalpy flux factor 0 zot via charnock ..>0 zot enhanced>15m/s
 
-!--- flake model parameters
-    integer              :: lkm             !< flag for flake model
+!--- lake model parameters
+    integer              :: lake_model_option             !< flag for lake model
+                                                          ! 0 : no lake model
+                                                          ! 1 : FLake model
+                                                          ! 2 : FLake model + nsst
+                                                          ! n : lake model n
 
 !--- tuning parameters for physical parameterizations
     logical              :: ras             !< flag for ras convection scheme
@@ -2087,6 +2103,18 @@ module GFS_typedefs
     allocate (Sfcprop%landfrac (IM))
     allocate (Sfcprop%lakefrac (IM))
     allocate (Sfcprop%lakedepth(IM))
+
+    allocate (Sfcprop%h_ML     (IM))
+    allocate (Sfcprop%t_ML     (IM))
+    allocate (Sfcprop%t_mnw    (IM))
+    allocate (Sfcprop%h_talb   (IM))
+    allocate (Sfcprop%t_talb   (IM))
+    allocate (Sfcprop%t_bot1   (IM))
+    allocate (Sfcprop%t_bot2   (IM))
+    allocate (Sfcprop%c_t      (IM))
+    allocate (Sfcprop%T_snow   (IM))
+    allocate (Sfcprop%T_ice    (IM))
+
     allocate (Sfcprop%tsfc     (IM))
     allocate (Sfcprop%tsfco    (IM))
     allocate (Sfcprop%tsfcl    (IM))
@@ -2120,6 +2148,18 @@ module GFS_typedefs
     Sfcprop%landfrac  = clear_val
     Sfcprop%lakefrac  = clear_val
     Sfcprop%lakedepth = clear_val
+
+    Sfcprop%h_ML      = clear_val
+    Sfcprop%t_ML      = clear_val
+    Sfcprop%t_mnw     = clear_val
+    Sfcprop%h_talb    = clear_val
+    Sfcprop%t_talb    = clear_val
+    Sfcprop%t_bot1    = clear_val
+    Sfcprop%t_bot2    = clear_val
+    Sfcprop%c_t       = clear_val
+    Sfcprop%T_snow    = clear_val
+    Sfcprop%T_ice     = clear_val
+
     Sfcprop%tsfc      = clear_val
     Sfcprop%tsfco     = clear_val
     Sfcprop%tsfcl     = clear_val
@@ -3166,8 +3206,8 @@ module GFS_typedefs
     integer              :: ntsflg         = 0                        !< flag for updating skin temperature in the GFDL surface layer scheme
     real(kind=kind_phys) :: sfenth         = 0.0                      !< enthalpy flux factor 0 zot via charnock ..>0 zot enhanced>15m/s
 
-!--- flake model parameters
-    integer              :: lkm            =  0                       !< flag for flake model - default no flake
+!--- lake model parameters
+    integer              :: lake_model_option  =  0                   !< flag for lake model - default no lake
 
 !--- tuning parameters for physical parameterizations
     logical              :: ras            = .false.                  !< flag for ras convection scheme
@@ -3539,7 +3579,7 @@ module GFS_typedefs
                           !    GFDL surface layer options
                                lcurr_sf, pert_cd, ntsflg, sfenth,                           &
                           !--- lake model control
-                               lkm,                                                         &
+                               lake_model_option,                                                         &
                           !--- physical parameterizations
                                ras, trans_trac, old_monin, cnvgwd, mstrat, moist_adj,       &
                                cscnv, cal_pre, do_aw, do_shoc, shocaftcnv, shoc_cld,        &
@@ -4194,8 +4234,8 @@ module GFS_typedefs
     Model%ntsflg           = ntsflg
     Model%sfenth           = sfenth
 
-!--- flake  model parameters
-    Model%lkm              = lkm
+!--- lake  model parameters
+    Model%lake_model_option              = lake_model_option
 
 ! Noah MP options from namelist
 !
@@ -5125,8 +5165,8 @@ module GFS_typedefs
       print *,' min_lakeice=',Model%min_lakeice,' min_seaice=',Model%min_seaice,                &
               'min_lake_height=',Model%min_lake_height
 
-      print *, 'flake model parameters'
-      print *, 'lkm                : ', Model%lkm
+      print *, 'lake model parameters'
+      print *, 'lake_model_option                : ', Model%lake_model_option
 
       if (Model%nstf_name(1) > 0 ) then
         print *,' NSSTM is active '
@@ -5982,8 +6022,8 @@ module GFS_typedefs
       print *, ' ntsflg            : ', Model%ntsflg
       print *, ' sfenth            : ', Model%sfenth
       print *, ' '
-      print *, 'flake model parameters'
-      print *, 'lkm                : ', Model%lkm
+      print *, 'lake model parameters'
+      print *, 'lake_model_option                : ', Model%lake_model_option
       print *, ' '
       print *, 'tuning parameters for physical parameterizations'
       print *, ' ras               : ', Model%ras
