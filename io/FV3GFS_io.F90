@@ -1433,6 +1433,7 @@ module FV3GFS_io_mod
          enddo
       endif ! noahmp
 ! Flake
+      nvar_s2me=nvar_s2m+nvar_s2o+nvar_s2r+nvar_s2mp
       if(Model%lake_model_option == 1 .or. Model%lake_model_option == 2 ) then
         mand = .false.
         do num = nvar_s2me+1,nvar_s2me+nvar_s2l
@@ -2321,7 +2322,6 @@ module FV3GFS_io_mod
          call register_restart_field(Sfc_restart, sfc_name2(num), var2_p, dimensions=(/'xaxis_1', 'yaxis_1', 'Time   '/) )
       endif
    enddo
-       print*,'come here here, nvar2m,nvar2o,nvar2r,nvar2mp=',nvar2m,nvar2o,nvar2r,nvar2mp
    if (Model%nstf_name(1) > 0) then
       mand = .false.
       if (Model%nstf_name(2) ==0) mand = .true.
