@@ -239,15 +239,15 @@ contains
       call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%f10m)
       call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%tprcp)
       call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%srflag)
-      lsm_choice: if (Model%lsm == Model%lsm_noah .or. Model%lsm == Model%lsm_noahmp) then
+      lsm_choice: if (Model%lsm == Model%lsm_noah) then
         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%slc)
         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%smc)
         call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%stc)
-      elseif (Model%lsm == Model%lsm_ruc) then
+      elseif (Model%lsm == Model%lsm_noahmp .or. Model%lsm == Model%lsm_ruc) then
         do k=1,3
           call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%sh2o(:,k))
         enddo
-        ! Combine levels 4 to lsoil_lsm (9 for RUC) into one
+        ! Combine levels 4 to lsoil_lsm into one
         nt=nt+1
         do ix=1,Atm_block%blksz(nb)
           temp2d(ii1(ix),jj1(ix),nt) = sum(GFS_Data(nb)%Sfcprop%sh2o(ix,4:Model%lsoil_lsm))
@@ -255,7 +255,6 @@ contains
         do k=1,3
           call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%smois(:,k))
         enddo
-        ! Combine levels 4 to lsoil_lsm (9 for RUC) into one
         nt=nt+1
         do ix=1,Atm_block%blksz(nb)
           temp2d(ii1(ix),jj1(ix),nt) = sum(GFS_Data(nb)%Sfcprop%smois(ix,4:Model%lsoil_lsm))
@@ -263,7 +262,6 @@ contains
         do k=1,3
           call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%tslb(:,k))
         enddo
-        ! Combine levels 4 to lsoil_lsm (9 for RUC) into one
         nt=nt+1
         do ix=1,Atm_block%blksz(nb)
           temp2d(ii1(ix),jj1(ix),nt) = sum(GFS_Data(nb)%Sfcprop%tslb(ix,4:Model%lsoil_lsm))
@@ -380,11 +378,11 @@ contains
           call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%tsnoxy(:,k))
         enddo
 
-        do k=1,4
+        do k=1,Model%lsoil_lsm
           call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%smoiseq(:,k))
         enddo
 
-        do k=-2,4
+        do k=-2,Model%lsoil_lsm
           call copy_from_GFS_Data(ii1,jj1,isc,jsc,nt,temp2d,GFS_Data(nb)%Sfcprop%zsnsoxy(:,k))
         enddo
       elseif (Model%lsm == Model%lsm_ruc) then
