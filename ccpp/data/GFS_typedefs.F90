@@ -2621,6 +2621,15 @@ module GFS_typedefs
     allocate(Sfcprop%semisbase(IM))
     Sfcprop%semisbase = clear_val
 
+    if (Model%lsm == Model%lsm_noahmp) then
+       allocate (Sfcprop%sh2o            (IM,Model%lsoil_lsm))
+       allocate (Sfcprop%smois           (IM,Model%lsoil_lsm))
+       allocate (Sfcprop%tslb            (IM,Model%lsoil_lsm))
+       Sfcprop%sh2o            = clear_val
+       Sfcprop%smois           = clear_val
+       Sfcprop%tslb            = clear_val
+    endif
+
     if (Model%lsm == Model%lsm_ruc) then
        ! For land surface models with different numbers of levels than the four NOAH levels
        allocate (Sfcprop%wetness         (IM))
@@ -4541,22 +4550,25 @@ module GFS_typedefs
     ! Allocate variables to store depth/thickness of soil layers
     allocate (Model%zs (Model%lsoil_lsm))
     allocate (Model%dzs(Model%lsoil_lsm))
-    if (Model%lsm==Model%lsm_noah .or. Model%lsm==Model%lsm_noahmp) then
+    if (Model%lsm==Model%lsm_noah) then
       if (Model%lsoil_lsm/=4) then
         write(0,*) 'Error in GFS_typedefs.F90, number of soil layers must be 4 for Noah/NoahMP'
         stop
       end if
       Model%zs  = (/-0.1_kind_phys, -0.4_kind_phys, -1.0_kind_phys, -2.0_kind_phys/)
       Model%dzs = (/ 0.1_kind_phys,  0.3_kind_phys,  0.6_kind_phys,  1.0_kind_phys/)
+    elseif (Model%lsm==Model%lsm_noahmp) then
+      Model%zs  = (/-0.02_kind_phys, -0.06_kind_phys, -0.14_kind_phys, -0.46_kind_phys, -0.74_kind_phys, -1.26_kind_phys, -1.94_kind_phys, -4.06_kind_phys, -5.06_kind_phys/)
+      Model%dzs = (/ 0.02_kind_phys,  0.04_kind_phys,  0.08_kind_phys, 0.32_kind_phys, 0.28_kind_phys, 0.52_kind_phys, 0.68_kind_phys, 2.12_kind_phys, 1.0_kind_phys/)
     elseif (Model%lsm==Model%lsm_ruc) then
       Model%zs  = clear_val
       Model%dzs = clear_val
     end if
     ! *DH
 
-    if (Model%lsm==Model%lsm_ruc) then
+    if (Model%lsm==Model%lsm_noahmp .or. Model%lsm==Model%lsm_ruc) then
       if (Model%lsoil_lsm/=9) then
-        write(0,*) 'Error in GFS_typedefs.F90, number of soil layers must be 9 for RUC'
+        write(0,*) 'Error in GFS_typedefs.F90, number of soil layers must be 9 for NoahMP (this version)/RUC'
         stop
       end if
     end if
