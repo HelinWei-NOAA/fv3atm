@@ -221,6 +221,7 @@ contains
       sfc%var2   = -9999.0_kind_phys
       sfc%var3   = -9999.0_kind_phys
       sfc%var3ice= -9999.0_kind_phys
+       print*,'here here Model%lsoil=',Model%lsoil,Model%lsoil_lsm
 
       if (Model%lsm == Model%lsm_noahmp) then
         allocate(sfc%var3sn(nx,ny,-2:0,4:6))
@@ -1133,7 +1134,7 @@ contains
         call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil,sfc%var3,Sfcprop(nb)%smc)
         call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil,sfc%var3,Sfcprop(nb)%slc)
 
-        if (Model%lsm == Model%lsm_noahmp) then
+       elseif (Model%lsm == Model%lsm_noahmp) then
         nt=0
         call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_lsm,sfc%var3,Sfcprop(nb)%tslb)
         call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_lsm,sfc%var3,Sfcprop(nb)%smois)
@@ -1215,7 +1216,7 @@ contains
               enddo
             enddo
           endif
-        endif
+!       endif
       else if (Model%lsm == Model%lsm_ruc) then
         !--- 3D variables
         nt=0
