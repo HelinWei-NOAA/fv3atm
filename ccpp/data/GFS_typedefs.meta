@@ -4701,7 +4701,7 @@
   dimensions = ()
   type = integer
   active = (control_for_lake_surface_scheme == 2)
-[lsoil]
+[lsoil_input]
   standard_name = vertical_dimension_of_soil
   long_name = number of soil layers
   units = count

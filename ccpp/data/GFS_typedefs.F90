@@ -1002,7 +1002,7 @@ module GFS_typedefs
     integer              :: lsm_noah=1      !< flag for NOAH land surface model
     integer              :: lsm_noahmp=2    !< flag for NOAH land surface model
     integer              :: lsm_ruc=3       !< flag for RUC land surface model
-    integer              :: lsoil           !< number of soil layers
+    integer              :: lsoil_input     !< number of soil layers in the ICs
     integer              :: ivegsrc         !< ivegsrc = 0   => USGS,
                                             !< ivegsrc = 1   => IGBP (20 category)
                                             !< ivegsrc = 2   => UMD  (13 category)
@@ -1049,6 +1049,7 @@ module GFS_typedefs
     integer              :: iopt_trs  !thermal roughness scheme (1-z0h=z0m; 2-czil; 3-ec;4-kb inversed)
     integer              :: iopt_diag !2m t/q diagnostic approach (1->external GFS sfc_diag 2->original NoahMP 2-title 3->NoahMP 
                                       !2-title + internal GFS sfc_diag  )
+    real(kind=kind_phys) :: zsoil(20) !layer-bottom depth from soil surf (m)
 
     ! -- RUC LSM options
     integer              :: mosaic_lu=0     !< control for use of fractional landuse in RUC land surface model
@@ -2192,9 +2193,9 @@ module GFS_typedefs
     endif
 
     !--- soil state variables - for soil SPPT - sfc-perts, mgehne
-    allocate (Statein%smc  (IM,Model%lsoil))
-    allocate (Statein%stc  (IM,Model%lsoil))
-    allocate (Statein%slc  (IM,Model%lsoil))
+    allocate (Statein%smc  (IM,Model%lsoil_input))
+    allocate (Statein%stc  (IM,Model%lsoil_input))
+    allocate (Statein%slc  (IM,Model%lsoil_input))
 
     Statein%smc   = clear_val
     Statein%stc   = clear_val
@@ -2434,9 +2435,9 @@ module GFS_typedefs
     allocate (Sfcprop%f10m   (IM))
     allocate (Sfcprop%tprcp  (IM))
     allocate (Sfcprop%srflag (IM))
-    allocate (Sfcprop%slc    (IM,Model%lsoil))
-    allocate (Sfcprop%smc    (IM,Model%lsoil))
-    allocate (Sfcprop%stc    (IM,Model%lsoil))
+    allocate (Sfcprop%slc    (IM,Model%lsoil_input))
+    allocate (Sfcprop%smc    (IM,Model%lsoil_input))
+    allocate (Sfcprop%stc    (IM,Model%lsoil_input))
 
     Sfcprop%hice   = clear_val
     Sfcprop%weasd  = clear_val
@@ -3473,7 +3474,7 @@ module GFS_typedefs
 
     !--- land/surface model parameters
     integer              :: lsm            =  1              !< flag for land surface model to use =0  for osu lsm; =1  for noah lsm; =2  for noah mp lsm; =3  for RUC lsm
-    integer              :: lsoil          =  4              !< number of soil layers
+    integer              :: lsoil_input    =  4              !< number of soil layers
     integer              :: lsoil_lsm      =  -1             !< number of soil layers internal to land surface model; -1 use lsoil
     integer              :: lsnow_lsm      =  3              !< maximum number of snow layers internal to land surface model
     logical              :: exticeden      = .false.         !< Use variable precip ice density for NOAH LSM if true or original formulation
@@ -3512,6 +3513,8 @@ module GFS_typedefs
     integer              :: iopt_trs       =  2  !thermal roughness scheme (1-z0h=z0m; 2-czil; 3-ec;4-kb reversed)
     integer              :: iopt_diag      =  2  !2m t/q diagnostic approach (1->external GFS sfc_diag 2->original NoahMP 2-title
                                                  !3->NoahMP 2-title + internal GFS sfc_diag  )
+    real(kind=kind_phys) :: zsoil(20)       = (/0.02, 0.06, 0.14, 0.46, 0.74, 1.26, 1.94, 4.06, 5.06,6.,7.,8.,9.,10.,11.,12.,13.,14.,15.,16./)
+                                                 ! layer-bottom depth from soil surf (m)
 
     integer              :: mosaic_lu      =  0  ! 1 - used of fractional landuse in RUC lsm
     integer              :: mosaic_soil    =  0  ! 1 - used of fractional soil in RUC lsm
@@ -3910,13 +3913,13 @@ module GFS_typedefs
                           !--- max hourly
                                avg_max_length,                                              &
                           !--- land/surface model control
-                               lsm, lsoil, lsoil_lsm, lsnow_lsm, kice, rdlai,               &
+                               lsm, lsoil_input, lsoil_lsm, lsnow_lsm, kice, rdlai,         &
                                nmtvr, ivegsrc, use_ufo, iopt_thcnd, ua_phys, usemonalb,     &
                                aoasis, fasdas, exticeden, nvegcat, nsoilcat,                &
                           !    Noah MP options
                                iopt_dveg,iopt_crs,iopt_btr,iopt_run,iopt_sfc, iopt_frz,     &
                                iopt_inf, iopt_rad,iopt_alb,iopt_snf,iopt_tbot,iopt_stc,     &
-                               iopt_trs, iopt_diag,                                         &
+                               iopt_trs, iopt_diag,zsoil,                                   &
                           !    RUC lsm options
                                mosaic_lu, mosaic_soil, isncond_opt, isncovr_opt,            &
                           !    GFDL surface layer options
@@ -4539,7 +4542,7 @@ module GFS_typedefs
 
 !--- land/surface model parameters
     Model%lsm              = lsm
-    Model%lsoil            = lsoil
+    Model%lsoil_input      = lsoil_input
 
     ! Flag to read leaf area index from input files (initial conditions)
     Model%rdlai = rdlai
@@ -4550,7 +4553,7 @@ module GFS_typedefs
 
     ! Set surface layers for CCPP physics
     if (lsoil_lsm==-1) then
-      Model%lsoil_lsm      = lsoil
+      Model%lsoil_lsm      = lsoil_input
     else
       Model%lsoil_lsm      = lsoil_lsm
     end if
@@ -4568,8 +4571,16 @@ module GFS_typedefs
       Model%zs  = (/-0.1_kind_phys, -0.4_kind_phys, -1.0_kind_phys, -2.0_kind_phys/)
       Model%dzs = (/ 0.1_kind_phys,  0.3_kind_phys,  0.6_kind_phys,  1.0_kind_phys/)
     elseif (Model%lsm==Model%lsm_noahmp) then
-      Model%zs  = (/-0.02_kind_phys, -0.06_kind_phys, -0.14_kind_phys, -0.46_kind_phys, -0.74_kind_phys, -1.26_kind_phys, -1.94_kind_phys, -4.06_kind_phys, -5.06_kind_phys/)
-      Model%dzs = (/ 0.02_kind_phys,  0.04_kind_phys,  0.08_kind_phys, 0.32_kind_phys, 0.28_kind_phys, 0.52_kind_phys, 0.68_kind_phys, 2.12_kind_phys, 1.0_kind_phys/)
+!     Model%zs  = (/-0.02_kind_phys, -0.06_kind_phys, -0.14_kind_phys, -0.46_kind_phys, -0.74_kind_phys, -1.26_kind_phys, -1.94_kind_phys, -4.06_kind_phys, -5.06_kind_phys/)
+!     Model%dzs = (/ 0.02_kind_phys,  0.04_kind_phys,  0.08_kind_phys, 0.32_kind_phys, 0.28_kind_phys, 0.52_kind_phys, 0.68_kind_phys, 2.12_kind_phys, 1.0_kind_phys/)
+      do n=1,Model%lsoil_lsm
+       Model%zs(n)=zsoil(n)*-1.0_kind_phys
+       if(n.eq.1)then
+       Model%dzs(n)=zsoil(n)
+       else
+       Model%dzs(n)=zsoil(n)-zsoil(n-1)
+       endif
+      enddo
     elseif (Model%lsm==Model%lsm_ruc) then
       Model%zs  = clear_val
       Model%dzs = clear_val
@@ -4682,6 +4693,8 @@ module GFS_typedefs
     Model%iopt_stc         = iopt_stc
     Model%iopt_trs         = iopt_trs
     Model%iopt_diag        = iopt_diag
+    Model%zsoil            = zsoil
+
 
 ! RUC lsm options
     Model%mosaic_lu        = mosaic_lu
@@ -6498,7 +6511,7 @@ module GFS_typedefs
       endif
       print *, 'land/surface model parameters'
       print *, ' lsm               : ', Model%lsm
-      print *, ' lsoil             : ', Model%lsoil
+      print *, ' lsoil_input       : ', Model%lsoil_input
       print *, ' rdlai             : ', Model%rdlai
       print *, ' lsoil_lsm         : ', Model%lsoil_lsm
       if (Model%lsm==Model%lsm_noahmp) then
