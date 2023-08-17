@@ -1003,6 +1003,7 @@ module GFS_typedefs
     integer              :: lsm_noahmp=2    !< flag for NOAH land surface model
     integer              :: lsm_ruc=3       !< flag for RUC land surface model
     integer              :: lsoil_input     !< number of soil layers in the ICs
+    real(kind=kind_phys) :: zsoil_input(20) !layer-bottom depth from soil surf (m)
     integer              :: ivegsrc         !< ivegsrc = 0   => USGS,
                                             !< ivegsrc = 1   => IGBP (20 category)
                                             !< ivegsrc = 2   => UMD  (13 category)
@@ -3475,6 +3476,7 @@ module GFS_typedefs
     !--- land/surface model parameters
     integer              :: lsm            =  1              !< flag for land surface model to use =0  for osu lsm; =1  for noah lsm; =2  for noah mp lsm; =3  for RUC lsm
     integer              :: lsoil_input    =  4              !< number of soil layers
+    real(kind=kind_phys) :: zsoil_input(20)       = (/0.1, 0.4, 1., 2., 2.74, 3.26, 3.94, 4.06, 5.06,6.,7.,8.,9.,10.,11.,12.,13.,14.,15.,16./)
     integer              :: lsoil_lsm      =  -1             !< number of soil layers internal to land surface model; -1 use lsoil
     integer              :: lsnow_lsm      =  3              !< maximum number of snow layers internal to land surface model
     logical              :: exticeden      = .false.         !< Use variable precip ice density for NOAH LSM if true or original formulation
@@ -3913,7 +3915,7 @@ module GFS_typedefs
                           !--- max hourly
                                avg_max_length,                                              &
                           !--- land/surface model control
-                               lsm, lsoil_input, lsoil_lsm, lsnow_lsm, kice, rdlai,         &
+                               lsm, lsoil_input, zsoil_input,lsoil_lsm, lsnow_lsm, kice, rdlai, &
                                nmtvr, ivegsrc, use_ufo, iopt_thcnd, ua_phys, usemonalb,     &
                                aoasis, fasdas, exticeden, nvegcat, nsoilcat,                &
                           !    Noah MP options
@@ -4543,6 +4545,7 @@ module GFS_typedefs
 !--- land/surface model parameters
     Model%lsm              = lsm
     Model%lsoil_input      = lsoil_input
+    Model%zsoil_input      = zsoil_input
 
     ! Flag to read leaf area index from input files (initial conditions)
     Model%rdlai = rdlai
