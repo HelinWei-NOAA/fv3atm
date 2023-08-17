@@ -1126,14 +1126,14 @@ contains
         enddo
       endif
 
-      if (Model%lsm == Model%lsm_noah .or. (reading .and. .not.warm_start)) then
+      if (reading .and. .not.warm_start) then
         !--- 3D variables
         nt=0
-        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_lsm,sfc%var3,Sfcprop(nb)%stc)
-        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_lsm,sfc%var3,Sfcprop(nb)%smc)
-        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_lsm,sfc%var3,Sfcprop(nb)%slc)
+        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_input,sfc%var3,Sfcprop(nb)%stc)
+        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_input,sfc%var3,Sfcprop(nb)%smc)
+        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_input,sfc%var3,Sfcprop(nb)%slc)
 
-       elseif (Model%lsm == Model%lsm_noahmp) then
+       elseif (Model%lsm == Model%lsm_noah .or. Model%lsm == Model%lsm_noahmp) then
         nt=0
         call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_lsm,sfc%var3,Sfcprop(nb)%tslb)
         call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_lsm,sfc%var3,Sfcprop(nb)%smois)
