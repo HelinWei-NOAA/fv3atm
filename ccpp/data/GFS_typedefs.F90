@@ -1022,6 +1022,7 @@ module GFS_typedefs
     integer              :: lsnow_lsm_ubound!< upper bound for snow arrays, depending on lsnow_lsm
     logical              :: exticeden       !< flag for calculating frozen precip ice density outside of the LSM
     real(kind=kind_phys), pointer :: zs(:)    => null() !< depth of soil levels for land surface model
+    real(kind=kind_phys), pointer :: zsi(:)    => null() !< depth of soil levels for input soil 
     real(kind=kind_phys), pointer :: dzs(:)   => null() !< thickness of soil levels for land surface model
     real(kind=kind_phys), pointer :: pores(:) => null() !< max soil moisture for a given soil type for land surface model
     real(kind=kind_phys), pointer :: resid(:) => null() !< min soil moisture for a given soil type for land surface model
@@ -4565,6 +4566,7 @@ module GFS_typedefs
     ! in the RUC LSM init calls.
     ! Allocate variables to store depth/thickness of soil layers
     allocate (Model%zs (Model%lsoil_lsm))
+    allocate (Model%zsi (Model%lsoil_input))
     allocate (Model%dzs(Model%lsoil_lsm))
     if (Model%lsm==Model%lsm_noah) then
       if (Model%lsoil_lsm/=4) then
@@ -4576,6 +4578,9 @@ module GFS_typedefs
     elseif (Model%lsm==Model%lsm_noahmp) then
 !     Model%zs  = (/-0.02_kind_phys, -0.06_kind_phys, -0.14_kind_phys, -0.46_kind_phys, -0.74_kind_phys, -1.26_kind_phys, -1.94_kind_phys, -4.06_kind_phys, -5.06_kind_phys/)
 !     Model%dzs = (/ 0.02_kind_phys,  0.04_kind_phys,  0.08_kind_phys, 0.32_kind_phys, 0.28_kind_phys, 0.52_kind_phys, 0.68_kind_phys, 2.12_kind_phys, 1.0_kind_phys/)
+      do n=1,Model%lsoil_input
+       Model%zsi(n)=zsoil_input(n)*-1.0_kind_phys
+      enddo
       do n=1,Model%lsoil_lsm
        Model%zs(n)=zsoil(n)*-1.0_kind_phys
        if(n.eq.1)then
@@ -6523,6 +6528,7 @@ module GFS_typedefs
         print *, ' lsnow_lsm_ubound  : ', Model%lsnow_lsm_ubound
       end if
       print *, ' zs  (may be unset): ', Model%zs
+      print *, ' zsi (may be unset): ', Model%zsi
       print *, ' dzs (may be unset): ', Model%dzs
       !
       print *, ' iopt_thcnd        : ', Model%iopt_thcnd
