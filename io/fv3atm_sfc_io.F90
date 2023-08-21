@@ -212,9 +212,11 @@ contains
       ! RUC LSM, but tiice in the initial conditions will only have two vertical layers
       allocate(sfc%var3ice(nx,ny,Model%kice))
 
-      if (Model%lsm == Model%lsm_noah .or. (.not.warm_start)) then
+!     if (Model%lsm == Model%lsm_noah .or. (.not.warm_start)) then
+      if (.not.warm_start) then
         allocate(sfc%var3(nx,ny,Model%lsoil_input,sfc%nvar3))
-       elseif (Model%lsm == Model%lsm_noahmp .or. Model%lsm == Model%lsm_ruc) then
+       else
+!      elseif (Model%lsm == Model%lsm_noahmp .or. Model%lsm == Model%lsm_ruc) then
         allocate(sfc%var3(nx,ny,Model%lsoil_lsm,sfc%nvar3))
       endif
 

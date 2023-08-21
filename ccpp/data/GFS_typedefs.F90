@@ -2437,6 +2437,9 @@ module GFS_typedefs
     allocate (Sfcprop%f10m   (IM))
     allocate (Sfcprop%tprcp  (IM))
     allocate (Sfcprop%srflag (IM))
+! for NoahMP and LUC, variables below are only used for ICs
+! For Noah, it is used for both ICs and Model, but lsoil_input must be the same
+! as lsoil_lsm
     allocate (Sfcprop%slc    (IM,Model%lsoil_input))
     allocate (Sfcprop%smc    (IM,Model%lsoil_input))
     allocate (Sfcprop%stc    (IM,Model%lsoil_input))
@@ -4569,8 +4572,8 @@ module GFS_typedefs
     allocate (Model%zsi (Model%lsoil_input))
     allocate (Model%dzs(Model%lsoil_lsm))
     if (Model%lsm==Model%lsm_noah) then
-      if (Model%lsoil_lsm/=4) then
-        write(0,*) 'Error in GFS_typedefs.F90, number of soil layers must be 4 for Noah/NoahMP'
+      if (Model%lsoil_input/=4 .or. Model%lsoil_lsm/=4) then
+        write(0,*) 'Error in GFS_typedefs.F90, number of soil layers (input and model)  must be 4 for Noah'
         stop
       end if
       Model%zs  = (/-0.1_kind_phys, -0.4_kind_phys, -1.0_kind_phys, -2.0_kind_phys/)
@@ -4595,7 +4598,7 @@ module GFS_typedefs
     end if
     ! *DH
 
-    if (Model%lsm==Model%lsm_noahmp .or. Model%lsm==Model%lsm_ruc) then
+    if (Model%lsm==Model%lsm_ruc) then
       if (Model%lsoil_lsm/=9) then
         write(0,*) 'Error in GFS_typedefs.F90, number of soil layers must be 9 for NoahMP (this version)/RUC'
         stop
