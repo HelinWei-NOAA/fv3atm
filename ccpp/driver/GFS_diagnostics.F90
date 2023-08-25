@@ -4091,7 +4091,11 @@ module GFS_diagnostics
 
   if (Model%lsm == Model%lsm_ruc .or. Model%lsm == Model%lsm_noahmp ) then
     do num = 1,Model%lsoil_lsm
-      write (xtra,'(i1)') num
+      if(num.le.9)then
+       write (xtra,'(i1)') num
+      else
+       write (xtra,'(i2)') num
+      endif
       idx = idx + 1
       ExtDiag(idx)%axes = 2
       ExtDiag(idx)%name = 'slc_'//trim(xtra)
@@ -4105,7 +4109,11 @@ module GFS_diagnostics
     enddo
   else
     do num = 1,Model%lsoil_lsm
-      write (xtra,'(i1)') num
+      if(num.le.9)then
+       write (xtra,'(i1)') num
+      else
+       write (xtra,'(i2)') num
+      endif
       idx = idx + 1
       ExtDiag(idx)%axes = 2
       ExtDiag(idx)%name = 'slc_'//trim(xtra)
@@ -4129,7 +4137,11 @@ module GFS_diagnostics
 
   if (Model%lsm == Model%lsm_ruc .or. Model%lsm == Model%lsm_noahmp) then
     do num = 1,Model%lsoil_lsm
-      write (xtra,'(i1)') num
+      if(num.le.9)then
+       write (xtra,'(i1)') num
+      else
+       write (xtra,'(i2)') num
+      endif
       idx = idx + 1
       ExtDiag(idx)%axes = 2
       ExtDiag(idx)%name = 'soilw'//trim(xtra)
@@ -4143,7 +4155,11 @@ module GFS_diagnostics
     enddo
   else
     do num = 1,Model%lsoil_lsm
-      write (xtra,'(i1)') num
+      if(num.le.9)then
+       write (xtra,'(i1)') num
+      else
+       write (xtra,'(i2)') num
+      endif
       idx = idx + 1
       ExtDiag(idx)%axes = 2
       ExtDiag(idx)%name = 'soilw'//trim(xtra)
@@ -4158,8 +4174,12 @@ module GFS_diagnostics
   endif
 
     if (Model%lsm == Model%lsm_ruc .or. Model%lsm == Model%lsm_noahmp) then
-      do num = 1,Model%lsoil_lsm
-        write (xtra,'(i1)') num
+        do num = 1,Model%lsoil_lsm
+        if(num.le.9)then
+         write (xtra,'(i1)') num
+        else
+         write (xtra,'(i2)') num
+        endif
         idx = idx + 1
         ExtDiag(idx)%axes = 2
         ExtDiag(idx)%name = 'soilt'//trim(xtra)
@@ -4173,7 +4193,11 @@ module GFS_diagnostics
       enddo
     else
       do num = 1,Model%lsoil_lsm
-        write (xtra,'(i1)') num
+      if(num.le.9)then
+       write (xtra,'(i1)') num
+      else
+       write (xtra,'(i2)') num
+      endif
         idx = idx + 1
         ExtDiag(idx)%axes = 2
         ExtDiag(idx)%name = 'soilt'//trim(xtra)
