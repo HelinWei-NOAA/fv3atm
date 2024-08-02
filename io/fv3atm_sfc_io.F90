@@ -9,8 +9,9 @@ module fv3atm_sfc_io
   use fms2_io_mod,        only: FmsNetcdfDomainFile_t, unlimited, write_data,&
                                 register_axis, register_restart_field,       &
                                 register_variable_attribute, register_field, &
-                                get_global_io_domain_indices, variable_exists
-  use fv3atm_common_io,   only: GFS_Data_transfer, &
+                                get_global_io_domain_indices, variable_exists, &
+                                get_dimension_size
+  use fv3atm_common_io,   only: GFS_Data_transfer, axis_type, &
        create_2d_field_and_add_to_bundle, create_3d_field_and_add_to_bundle
   use GFS_typedefs,       only: GFS_sfcprop_type, GFS_control_type, kind_phys
   use mpp_mod,            only: mpp_error,  NOTE
@@ -20,7 +21,8 @@ module fv3atm_sfc_io
   private
 
   public :: Sfc_io_data_type
-  public :: Sfc_io_fill_2d_names, Sfc_io_fill_3d_names, Sfc_io_allocate_arrays, &
+  public :: Sfc_io_fill_2d_names, Sfc_io_fill_2d_names_v2, &
+       Sfc_io_fill_3d_names, Sfc_io_allocate_arrays, &
        Sfc_io_register_axes, Sfc_io_write_axes, Sfc_io_register_2d_fields, &
        Sfc_io_register_3d_fields, Sfc_io_copy_to_grid, Sfc_io_copy_from_grid, &
        Sfc_io_apply_safeguards, Sfc_io_transfer, Sfc_io_final
@@ -47,6 +49,8 @@ module fv3atm_sfc_io
 
     ! The lsoil flag is only meaningful when reading:;
     logical, public :: is_lsoil = .false.
+
+    logical, public :: is_v2_file = .false.
 
     ! SYNONYMS: Some nvar variables had two names in fv3atm_io.F90. They have
     ! only one name here. The "_s" is redundant because this file only has
@@ -78,6 +82,7 @@ module fv3atm_sfc_io
     procedure, public :: bundle_2d_fields => Sfc_io_bundle_2d_fields
     procedure, public :: bundle_3d_fields => Sfc_io_bundle_3d_fields
     procedure, public :: fill_2d_names => Sfc_io_fill_2d_names
+    procedure, public :: fill_2d_names_v2 => Sfc_io_fill_2d_names_v2
     procedure, public :: fill_3d_names => Sfc_io_fill_3d_names
     procedure, public :: init_fields => Sfc_io_init_fields
     procedure, public :: transfer => Sfc_io_transfer
@@ -212,16 +217,17 @@ contains
       ! RUC LSM, but tiice in the initial conditions will only have two vertical layers
       allocate(sfc%var3ice(nx,ny,Model%kice))
 
-      if (Model%lsm == Model%lsm_noah .or. (.not.warm_start)) then
-        allocate(sfc%var3(nx,ny,Model%lsoil,sfc%nvar3))
-       elseif (Model%lsm == Model%lsm_noahmp .or. Model%lsm == Model%lsm_ruc) then
+!     if (Model%lsm == Model%lsm_noah .or. (.not.warm_start)) then
+      if (.not.warm_start) then
+        allocate(sfc%var3(nx,ny,Model%lsoil_input,sfc%nvar3))
+       else
+!      elseif (Model%lsm == Model%lsm_noahmp .or. Model%lsm == Model%lsm_ruc) then
         allocate(sfc%var3(nx,ny,Model%lsoil_lsm,sfc%nvar3))
       endif
 
       sfc%var2   = -9999.0_kind_phys
       sfc%var3   = -9999.0_kind_phys
       sfc%var3ice= -9999.0_kind_phys
-       print*,'here here Model%lsoil=',Model%lsoil,Model%lsoil_lsm
 
       if (Model%lsm == Model%lsm_noahmp) then
         allocate(sfc%var3sn(nx,ny,-2:0,4:6))
@@ -255,17 +261,17 @@ contains
     endif
 
     if(.not.warm_start .and. reading) then
-      if( variable_exists(Sfc_restart,"lsoil") ) then
+      if( variable_exists(Sfc_restart,"lsoil_lsm") ) then
         if(reading) then
           sfc%is_lsoil=.true.
         endif
         call register_axis(Sfc_restart, 'lon', 'X')
         call register_axis(Sfc_restart, 'lat', 'Y')
-        call register_axis(Sfc_restart, 'lsoil', dimension_length=Model%lsoil)
+        call register_axis(Sfc_restart, 'lsoil_lsm', dimension_length=Model%lsoil_lsm)
       else
         call register_axis(Sfc_restart, 'xaxis_1', 'X')
         call register_axis(Sfc_restart, 'yaxis_1', 'Y')
-        call register_axis(Sfc_restart, 'zaxis_1', dimension_length=4)
+        call register_axis(Sfc_restart, 'zaxis_1', dimension_length=Model%lsoil_lsm)
         call register_axis(Sfc_restart, 'Time', 1)
       end if
     else
@@ -273,7 +279,7 @@ contains
       call register_axis(Sfc_restart, 'yaxis_1', 'Y')
       call register_axis(Sfc_restart, 'zaxis_1', dimension_length=Model%kice)
       if (Model%lsm == Model%lsm_noah) then
-        call register_axis(Sfc_restart, 'zaxis_2', dimension_length=Model%lsoil)
+        call register_axis(Sfc_restart, 'zaxis_2', dimension_length=Model%lsoil_lsm)
       else if (Model%lsm == Model%lsm_noahmp) then
         call register_axis(Sfc_restart, 'zaxis_2', dimension_length=Model%lsoil_lsm)
       else if(Model%lsm == Model%lsm_ruc .and. reading) then
@@ -311,19 +317,19 @@ contains
     integer :: i, is, ie
     logical :: mand
 
-    call register_field(Sfc_restart, 'xaxis_1', 'double', (/'xaxis_1'/))
+    call register_field(Sfc_restart, 'xaxis_1', axis_type, (/'xaxis_1'/))
     call register_variable_attribute(Sfc_restart, 'xaxis_1', 'cartesian_axis', 'X', str_len=1)
     call get_global_io_domain_indices(Sfc_restart, 'xaxis_1', is, ie, indices=buffer)
     call write_data(Sfc_restart, "xaxis_1", buffer)
     deallocate(buffer)
 
-    call register_field(Sfc_restart, 'yaxis_1', 'double', (/'yaxis_1'/))
+    call register_field(Sfc_restart, 'yaxis_1', axis_type, (/'yaxis_1'/))
     call register_variable_attribute(Sfc_restart, 'yaxis_1', 'cartesian_axis', 'Y', str_len=1)
     call get_global_io_domain_indices(Sfc_restart, 'yaxis_1', is, ie, indices=buffer)
     call write_data(Sfc_restart, "yaxis_1", buffer)
     deallocate(buffer)
 
-    call register_field(Sfc_restart, 'zaxis_1', 'double', (/'zaxis_1'/))
+    call register_field(Sfc_restart, 'zaxis_1', axis_type, (/'zaxis_1'/))
     call register_variable_attribute(Sfc_restart, 'zaxis_1', 'cartesian_axis', 'Z', str_len=1)
     allocate( buffer(Model%kice) )
     do i=1, Model%kice
@@ -332,11 +338,12 @@ contains
     call write_data(Sfc_restart, 'zaxis_1', buffer)
     deallocate(buffer)
 
-    if (Model%lsm == Model%lsm_noah) then
-      call register_field(Sfc_restart, 'zaxis_2', 'double', (/'zaxis_2'/))
+
+    if (Model%lsm == Model%lsm_noah .or. Model%lsm == Model%lsm_noahmp) then
+      call register_field(Sfc_restart, 'zaxis_2', axis_type, (/'zaxis_2'/))
       call register_variable_attribute(Sfc_restart, 'zaxis_2', 'cartesian_axis', 'Z', str_len=1)
-      allocate( buffer(Model%lsoil) )
-      do i=1, Model%lsoil
+      allocate( buffer(Model%lsoil_lsm) )
+      do i=1, Model%lsoil_lsm
         buffer(i)=i
       end do
       call write_data(Sfc_restart, 'zaxis_2', buffer)
@@ -355,7 +362,7 @@ contains
     endif
 
     if(Model%lsm == Model%lsm_noahmp) then
-      call register_field(Sfc_restart, 'zaxis_3', 'double', (/'zaxis_3'/))
+      call register_field(Sfc_restart, 'zaxis_3', axis_type, (/'zaxis_3'/))
       call register_variable_attribute(Sfc_restart, 'zaxis_3', 'cartesian_axis', 'Z', str_len=1)
       allocate(buffer(3))
       do i=1, 3
@@ -364,7 +371,7 @@ contains
       call write_data(Sfc_restart, 'zaxis_3', buffer)
       deallocate(buffer)
 
-      call register_field(Sfc_restart, 'zaxis_4', 'double', (/'zaxis_4'/))
+      call register_field(Sfc_restart, 'zaxis_4', axis_type, (/'zaxis_4'/))
       call register_variable_attribute(Sfc_restart, 'zaxis_4', 'cartesian_axis' ,'Z', str_len=1)
       allocate(buffer(3+Model%lsoil_lsm))
       do i=1, 3+Model%lsoil_lsm
@@ -373,7 +380,7 @@ contains
       call write_data(Sfc_restart, 'zaxis_4', buffer)
       deallocate(buffer)
     end if
-    call register_field(Sfc_restart, 'Time', 'double', (/'Time'/))
+    call register_field(Sfc_restart, 'Time', axis_type, (/'Time'/))
     call register_variable_attribute(Sfc_restart, 'Time', 'cartesian_axis', 'T', str_len=1)
     call write_data( Sfc_restart, 'Time', 1)
   end subroutine Sfc_io_write_axes
@@ -580,6 +587,174 @@ contains
     endif
   end subroutine Sfc_io_fill_2d_names
 
+  !>@ Fills the name2d array with all surface 2D field names. Updates nvar2m if needed.
+  !!  This routine is for v2 coldstart files.
+  subroutine Sfc_io_fill_2d_names_v2(sfc,Model,warm_start)
+    implicit none
+    class(Sfc_io_data_type)           :: sfc
+    type(GFS_control_type),    intent(in) :: Model
+    logical, intent(in) :: warm_start
+    integer :: nt
+
+    !--- names of the 2D variables to save
+    nt=0
+    nt=nt+1 ; sfc%name2(nt) = 'slmsk'
+    nt=nt+1 ; sfc%name2(nt) = 'tsea'    ! tsfc
+    nt=nt+1 ; sfc%name2(nt) = 'sheleg'  ! weasd in file. Optional for cold starts.
+    nt=nt+1 ; sfc%name2(nt) = 'tg3'
+    nt=nt+1 ; sfc%name2(nt) = 'zorl'    ! Optional for cold starts.
+    nt=nt+1 ; sfc%name2(nt) = 'alvsf'
+    nt=nt+1 ; sfc%name2(nt) = 'alvwf'
+    nt=nt+1 ; sfc%name2(nt) = 'alnsf'
+    nt=nt+1 ; sfc%name2(nt) = 'alnwf'
+    nt=nt+1 ; sfc%name2(nt) = 'facsf'
+    nt=nt+1 ; sfc%name2(nt) = 'facwf'
+    nt=nt+1 ; sfc%name2(nt) = 'vfrac'
+    nt=nt+1 ; sfc%name2(nt) = 'canopy'
+    nt=nt+1 ; sfc%name2(nt) = 'f10m'
+    nt=nt+1 ; sfc%name2(nt) = 't2m'
+    nt=nt+1 ; sfc%name2(nt) = 'q2m'
+    nt=nt+1 ; sfc%name2(nt) = 'vtype'
+    nt=nt+1 ; sfc%name2(nt) = 'stype'
+    nt=nt+1 ; sfc%name2(nt) = 'uustar'
+    nt=nt+1 ; sfc%name2(nt) = 'ffmm'
+    nt=nt+1 ; sfc%name2(nt) = 'ffhh'
+    nt=nt+1 ; sfc%name2(nt) = 'hice'
+    nt=nt+1 ; sfc%name2(nt) = 'fice'
+    nt=nt+1 ; sfc%name2(nt) = 'tisfc'
+    nt=nt+1 ; sfc%name2(nt) = 'tprcp'
+    nt=nt+1 ; sfc%name2(nt) = 'srflag'
+    nt=nt+1 ; sfc%name2(nt) = 'snwdph'  ! snowd in file. Optional for cold starts.
+    nt=nt+1 ; sfc%name2(nt) = 'shdmin'
+    nt=nt+1 ; sfc%name2(nt) = 'shdmax'
+    nt=nt+1 ; sfc%name2(nt) = 'slope'
+    nt=nt+1 ; sfc%name2(nt) = 'snoalb'
+    !--- variables below here are optional, unless indicated.
+    nt=nt+1 ; sfc%name2(nt) = 'scolor'
+    nt=nt+1 ; sfc%name2(nt) = 'sncovr'
+    nt=nt+1 ; sfc%name2(nt) = 'snodl' ! snowd on land portion of a cell.
+                                      ! Mandatory for cold starts.
+    nt=nt+1 ; sfc%name2(nt) = 'weasdl'! weasd on land portion of a cell.
+                                      ! Mandatory for cold starts.
+    nt=nt+1 ; sfc%name2(nt) = 'tsfc'  ! tsfc composite
+    nt=nt+1 ; sfc%name2(nt) = 'tsfcl' ! temp on land portion of a cell
+    nt=nt+1 ; sfc%name2(nt) = 'zorlw' ! zorl on water portion of a cell
+                                      ! Mandatory for cold starts.
+    nt=nt+1 ; sfc%name2(nt) = 'zorll' ! zorl on land portion of a cell
+    nt=nt+1 ; sfc%name2(nt) = 'zorli' ! zorl on ice portion of a cell
+                                      ! Mandatory for cold starts.
+    nt=nt+1 ; sfc%name2(nt) = 'albdirvis_lnd'
+    nt=nt+1 ; sfc%name2(nt) = 'albdirnir_lnd'
+    nt=nt+1 ; sfc%name2(nt) = 'albdifvis_lnd'
+    nt=nt+1 ; sfc%name2(nt) = 'albdifnir_lnd'
+    nt=nt+1 ; sfc%name2(nt) = 'emis_lnd'
+    nt=nt+1 ; sfc%name2(nt) = 'emis_ice'
+    nt=nt+1 ; sfc%name2(nt) = 'sncovr_ice'
+    nt=nt+1 ; sfc%name2(nt) = 'snodi' ! snowd on ice portion of a cell.
+                                      ! Mandatory for cold starts.
+    nt=nt+1 ; sfc%name2(nt) = 'weasdi'! weasd on ice portion of a cell
+                                      ! Mandatory for cold starts.
+
+    if (Model%use_cice_alb .or. Model%lsm == Model%lsm_ruc) then
+      nt=nt+1 ; sfc%name2(nt) = 'albdirvis_ice'
+      nt=nt+1 ; sfc%name2(nt) = 'albdifvis_ice'
+      nt=nt+1 ; sfc%name2(nt) = 'albdirnir_ice'
+      nt=nt+1 ; sfc%name2(nt) = 'albdifnir_ice'
+    endif
+
+    if(Model%cplwav) then
+      nt=nt+1 ; sfc%name2(nt) = 'zorlwav' !zorl from wave component
+      sfc%nvar2m = nt
+    endif
+
+    if (Model%nstf_name(1) > 0) then
+      !--- NSSTM inputs only needed when (nstf_name(1) > 0) .and. (nstf_name(2)) == 0)
+      nt=nt+1 ; sfc%name2(nt) = 'tref'
+      nt=nt+1 ; sfc%name2(nt) = 'z_c'
+      nt=nt+1 ; sfc%name2(nt) = 'c_0'
+      nt=nt+1 ; sfc%name2(nt) = 'c_d'
+      nt=nt+1 ; sfc%name2(nt) = 'w_0'
+      nt=nt+1 ; sfc%name2(nt) = 'w_d'
+      nt=nt+1 ; sfc%name2(nt) = 'xt'
+      nt=nt+1 ; sfc%name2(nt) = 'xs'
+      nt=nt+1 ; sfc%name2(nt) = 'xu'
+      nt=nt+1 ; sfc%name2(nt) = 'xv'
+      nt=nt+1 ; sfc%name2(nt) = 'xz'
+      nt=nt+1 ; sfc%name2(nt) = 'zm'
+      nt=nt+1 ; sfc%name2(nt) = 'xtts'
+      nt=nt+1 ; sfc%name2(nt) = 'xzts'
+      nt=nt+1 ; sfc%name2(nt) = 'd_conv'
+      nt=nt+1 ; sfc%name2(nt) = 'ifd'
+      nt=nt+1 ; sfc%name2(nt) = 'dt_cool'
+      nt=nt+1 ; sfc%name2(nt) = 'qrain'
+    endif
+    !
+    ! Only needed when Noah MP LSM is used - 29 2D
+    !
+    if (Model%lsm == Model%lsm_noahmp) then
+      nt=nt+1 ; sfc%name2(nt) = 'snowxy'
+      nt=nt+1 ; sfc%name2(nt) = 'tvxy'
+      nt=nt+1 ; sfc%name2(nt) = 'tgxy'
+      nt=nt+1 ; sfc%name2(nt) = 'canicexy'
+      nt=nt+1 ; sfc%name2(nt) = 'canliqxy'
+      nt=nt+1 ; sfc%name2(nt) = 'eahxy'
+      nt=nt+1 ; sfc%name2(nt) = 'tahxy'
+      nt=nt+1 ; sfc%name2(nt) = 'cmxy'
+      nt=nt+1 ; sfc%name2(nt) = 'chxy'
+      nt=nt+1 ; sfc%name2(nt) = 'fwetxy'
+      nt=nt+1 ; sfc%name2(nt) = 'sneqvoxy'
+      nt=nt+1 ; sfc%name2(nt) = 'alboldxy'
+      nt=nt+1 ; sfc%name2(nt) = 'qsnowxy'
+      nt=nt+1 ; sfc%name2(nt) = 'wslakexy'
+      nt=nt+1 ; sfc%name2(nt) = 'zwtxy'
+      nt=nt+1 ; sfc%name2(nt) = 'waxy'
+      nt=nt+1 ; sfc%name2(nt) = 'wtxy'
+      nt=nt+1 ; sfc%name2(nt) = 'lfmassxy'
+      nt=nt+1 ; sfc%name2(nt) = 'rtmassxy'
+      nt=nt+1 ; sfc%name2(nt) = 'stmassxy'
+      nt=nt+1 ; sfc%name2(nt) = 'woodxy'
+      nt=nt+1 ; sfc%name2(nt) = 'stblcpxy'
+      nt=nt+1 ; sfc%name2(nt) = 'fastcpxy'
+      nt=nt+1 ; sfc%name2(nt) = 'xsaixy'
+      nt=nt+1 ; sfc%name2(nt) = 'xlaixy'
+      nt=nt+1 ; sfc%name2(nt) = 'taussxy'
+      nt=nt+1 ; sfc%name2(nt) = 'smcwtdxy'
+      nt=nt+1 ; sfc%name2(nt) = 'deeprechxy'
+      nt=nt+1 ; sfc%name2(nt) = 'rechxy'
+    else if (Model%lsm == Model%lsm_ruc .and. warm_start) then
+      nt=nt+1 ; sfc%name2(nt) = 'wetness'
+      nt=nt+1 ; sfc%name2(nt) = 'clw_surf_land'
+      nt=nt+1 ; sfc%name2(nt) = 'clw_surf_ice'
+      nt=nt+1 ; sfc%name2(nt) = 'qwv_surf_land'
+      nt=nt+1 ; sfc%name2(nt) = 'qwv_surf_ice'
+      nt=nt+1 ; sfc%name2(nt) = 'tsnow_land'
+      nt=nt+1 ; sfc%name2(nt) = 'tsnow_ice'
+      nt=nt+1 ; sfc%name2(nt) = 'snowfall_acc_land'
+      nt=nt+1 ; sfc%name2(nt) = 'snowfall_acc_ice'
+      nt=nt+1 ; sfc%name2(nt) = 'sfalb_lnd'
+      nt=nt+1 ; sfc%name2(nt) = 'sfalb_lnd_bck'
+      nt=nt+1 ; sfc%name2(nt) = 'sfalb_ice'
+      if (Model%rdlai) then
+        nt=nt+1 ; sfc%name2(nt) = 'lai'
+      endif
+    else if (Model%lsm == Model%lsm_ruc .and. Model%rdlai) then
+      nt=nt+1 ; sfc%name2(nt) = 'lai'
+    endif
+
+    if (Model%lkm > 0 .and. Model%iopt_lake==Model%iopt_lake_flake) then
+      nt=nt+1 ; sfc%name2(nt) = 'T_snow'
+      nt=nt+1 ; sfc%name2(nt) = 'T_ice'
+      nt=nt+1 ; sfc%name2(nt) = 'h_ML'
+      nt=nt+1 ; sfc%name2(nt) = 't_ML'
+      nt=nt+1 ; sfc%name2(nt) = 't_mnw'
+      nt=nt+1 ; sfc%name2(nt) = 'h_talb'
+      nt=nt+1 ; sfc%name2(nt) = 't_talb'
+      nt=nt+1 ; sfc%name2(nt) = 't_bot1'
+      nt=nt+1 ; sfc%name2(nt) = 't_bot2'
+      nt=nt+1 ; sfc%name2(nt) = 'c_t'
+    endif
+  end subroutine Sfc_io_fill_2d_names_v2
+
   !>@ Registers 2D fields with FMS for reading or writing non-quilt restart files
   subroutine Sfc_io_register_2d_fields(sfc,Model,Sfc_restart,reading,warm_start)
     implicit none
@@ -598,40 +773,76 @@ contains
 
     character(len=7) :: time2d(3)
 
+    integer :: xaxis_1_chunk, yaxis_1_chunk
+    integer :: chunksizes2d(3)
+
+    call get_dimension_size(Sfc_restart, 'xaxis_1', xaxis_1_chunk)
+    call get_dimension_size(Sfc_restart, 'yaxis_1', yaxis_1_chunk)
+
     if(.not.reading) then
       time2d=(/'xaxis_1','yaxis_1','Time   '/)
+      chunksizes2d=(/xaxis_1_chunk, yaxis_1_chunk, 1/)
     else
       time2d=(/'Time   ','yaxis_1','xaxis_1'/)
     endif
 
     !--- register the 2D fields
-    do num = 1,sfc%nvar2m
-      var2_p => sfc%var2(:,:,num)
-      if (trim(sfc%name2(num)) == 'sncovr' .or. trim(sfc%name2(num)) == 'tsfcl' .or. trim(sfc%name2(num)) == 'zorll' &
-           .or. trim(sfc%name2(num)) == 'zorli' .or. trim(sfc%name2(num)) == 'zorlwav' &
-           .or. trim(sfc%name2(num)) == 'snodl' .or. trim(sfc%name2(num)) == 'weasdl'  &
-           .or. trim(sfc%name2(num)) == 'snodi' .or. trim(sfc%name2(num)) == 'weasdi'  &
-           .or. trim(sfc%name2(num)) == 'tsfc'  .or. trim(sfc%name2(num)) ==  'zorlw'  &
+    if (sfc%is_v2_file) then
+      do num = 1,sfc%nvar2m
+        var2_p => sfc%var2(:,:,num)
+        if (trim(sfc%name2(num)) == 'sncovr' .or. trim(sfc%name2(num)) == 'zorll' &
+           .or. trim(sfc%name2(num)) == 'zorl' .or. trim(sfc%name2(num)) == 'zorlwav' &
+           .or. trim(sfc%name2(num)) == 'snwdph' .or. trim(sfc%name2(num)) == 'sheleg'  &
+           .or. trim(sfc%name2(num)) == 'tsfc' &
            .or. trim(sfc%name2(num)) == 'albdirvis_lnd' .or. trim(sfc%name2(num)) == 'albdirnir_lnd' &
            .or. trim(sfc%name2(num)) == 'albdifvis_lnd' .or. trim(sfc%name2(num)) == 'albdifnir_lnd' &
            .or. trim(sfc%name2(num)) == 'albdirvis_ice' .or. trim(sfc%name2(num)) == 'albdirnir_ice' &
            .or. trim(sfc%name2(num)) == 'albdifvis_ice' .or. trim(sfc%name2(num)) == 'albdifnir_ice' &
            .or. trim(sfc%name2(num)) == 'emis_lnd'      .or. trim(sfc%name2(num)) == 'emis_ice'      &
            .or. trim(sfc%name2(num)) == 'sncovr_ice'    .or. trim(sfc%name2(num)) == 'scolor') then
-        if(reading .and. sfc%is_lsoil) then
-          call register_restart_field(Sfc_restart, sfc%name2(num), var2_p, dimensions=(/'lat','lon'/), is_optional=.true.)
+          if(reading .and. sfc%is_lsoil) then
+            call register_restart_field(Sfc_restart, sfc%name2(num), var2_p, dimensions=(/'lat','lon'/), is_optional=.true.)
+          else
+            call register_restart_field(Sfc_restart, sfc%name2(num), var2_p, dimensions=time2d,&
+               & chunksizes=chunksizes2d, is_optional=.true.)
+          end if
         else
-          call register_restart_field(Sfc_restart, sfc%name2(num), var2_p, dimensions=time2d,&
-               &is_optional=.true.)
-        end if
-      else
-        if(reading .and. sfc%is_lsoil) then
-          call register_restart_field(Sfc_restart,sfc%name2(num),var2_p, dimensions=(/'lat','lon'/))
+          if(reading .and. sfc%is_lsoil) then
+            call register_restart_field(Sfc_restart,sfc%name2(num),var2_p, dimensions=(/'lat','lon'/))
+          else
+            call register_restart_field(Sfc_restart,sfc%name2(num),var2_p, dimensions=time2d, chunksizes=chunksizes2d)
+          end if
+        endif
+      enddo
+    else
+      do num = 1,sfc%nvar2m
+        var2_p => sfc%var2(:,:,num)
+        if (trim(sfc%name2(num)) == 'sncovr' .or. trim(sfc%name2(num)) == 'tsfcl' .or. trim(sfc%name2(num)) == 'zorll' &
+             .or. trim(sfc%name2(num)) == 'zorli' .or. trim(sfc%name2(num)) == 'zorlwav' &
+             .or. trim(sfc%name2(num)) == 'snodl' .or. trim(sfc%name2(num)) == 'weasdl'  &
+             .or. trim(sfc%name2(num)) == 'snodi' .or. trim(sfc%name2(num)) == 'weasdi'  &
+             .or. trim(sfc%name2(num)) == 'tsfc'  .or. trim(sfc%name2(num)) ==  'zorlw'  &
+             .or. trim(sfc%name2(num)) == 'albdirvis_lnd' .or. trim(sfc%name2(num)) == 'albdirnir_lnd' &
+             .or. trim(sfc%name2(num)) == 'albdifvis_lnd' .or. trim(sfc%name2(num)) == 'albdifnir_lnd' &
+             .or. trim(sfc%name2(num)) == 'albdirvis_ice' .or. trim(sfc%name2(num)) == 'albdirnir_ice' &
+             .or. trim(sfc%name2(num)) == 'albdifvis_ice' .or. trim(sfc%name2(num)) == 'albdifnir_ice' &
+             .or. trim(sfc%name2(num)) == 'emis_lnd'      .or. trim(sfc%name2(num)) == 'emis_ice'      &
+             .or. trim(sfc%name2(num)) == 'sncovr_ice'    .or. trim(sfc%name2(num)) == 'scolor') then
+          if(reading .and. sfc%is_lsoil) then
+            call register_restart_field(Sfc_restart, sfc%name2(num), var2_p, dimensions=(/'lat','lon'/), is_optional=.true.)
+          else
+            call register_restart_field(Sfc_restart, sfc%name2(num), var2_p, dimensions=time2d,&
+               & chunksizes=chunksizes2d, is_optional=.true.)
+          end if
         else
-          call register_restart_field(Sfc_restart,sfc%name2(num),var2_p, dimensions=time2d)
-        end if
-      endif
-    enddo
+          if(reading .and. sfc%is_lsoil) then
+            call register_restart_field(Sfc_restart,sfc%name2(num),var2_p, dimensions=(/'lat','lon'/))
+          else
+            call register_restart_field(Sfc_restart,sfc%name2(num),var2_p, dimensions=time2d, chunksizes=chunksizes2d)
+          end if
+        endif
+      enddo
+    endif
 
     if (Model%nstf_name(1) > 0) then
       mand = .false.
@@ -641,7 +852,7 @@ contains
         if(sfc%is_lsoil) then
           call register_restart_field(Sfc_restart, sfc%name2(num), var2_p, dimensions=(/'lat','lon'/), is_optional=.not.mand)
         else
-          call register_restart_field(Sfc_restart, sfc%name2(num), var2_p, dimensions=time2d, is_optional=.not.mand)
+          call register_restart_field(Sfc_restart, sfc%name2(num), var2_p, dimensions=time2d, chunksizes=chunksizes2d, is_optional=.not.mand)
         endif
       enddo
     endif
@@ -652,7 +863,7 @@ contains
         if(sfc%is_lsoil) then
           call register_restart_field(Sfc_restart, sfc%name2(num), var2_p, dimensions=(/'lat','lon'/) )
         else
-          call register_restart_field(Sfc_restart, sfc%name2(num), var2_p, dimensions=time2d)
+          call register_restart_field(Sfc_restart, sfc%name2(num), var2_p, dimensions=time2d, chunksizes=chunksizes2d)
         end if
       enddo
     endif ! mp/ruc
@@ -666,7 +877,7 @@ contains
         if(sfc%is_lsoil) then
           call register_restart_field(Sfc_restart, sfc%name2(num), var2_p, dimensions=(/'lat','lon'/), is_optional=.not.mand)
         else
-          call register_restart_field(Sfc_restart, sfc%name2(num), var2_p, dimensions=time2d, is_optional=.not.mand)
+          call register_restart_field(Sfc_restart, sfc%name2(num), var2_p, dimensions=time2d, chunksizes=chunksizes2d, is_optional=.not.mand)
         end if
       enddo
     endif ! noahmp
@@ -679,7 +890,7 @@ contains
         if(sfc%is_lsoil) then
           call register_restart_field(Sfc_restart, sfc%name2(num),var2_p,dimensions=(/'lat','lon'/), is_optional=.not.mand)
         else
-          call register_restart_field(Sfc_restart, sfc%name2(num),var2_p,dimensions=time2d, is_optional=.not.mand)
+          call register_restart_field(Sfc_restart, sfc%name2(num),var2_p,dimensions=time2d, chunksizes=chunksizes2d, is_optional=.not.mand)
         endif
       enddo
     endif
@@ -707,19 +918,31 @@ contains
     character(len=7), parameter :: xyz3_time(4) = (/'xaxis_1', 'yaxis_1', 'zaxis_3', 'Time   '/)
     character(len=7), parameter :: xyz4_time(4) = (/'xaxis_1', 'yaxis_1', 'zaxis_4', 'Time   '/)
 
+    integer :: xaxis_1_chunk, yaxis_1_chunk
+    integer :: chunksizes3d(4)
+
+    call get_dimension_size(Sfc_restart, 'xaxis_1', xaxis_1_chunk)
+    call get_dimension_size(Sfc_restart, 'yaxis_1', yaxis_1_chunk)
+
+    chunksizes3d = (/xaxis_1_chunk, yaxis_1_chunk, 1, 1/)
+
     !--- register the 3D fields
     var3_p => sfc%var3ice(:,:,:)
-    call register_restart_field(Sfc_restart, sfc%name3(0), var3_p, dimensions=xyz1_time, is_optional=.true.)
+    if (sfc%is_v2_file) then
+      call register_restart_field(Sfc_restart, sfc%name3(0), var3_p, dimensions=xyz1_time, chunksizes=chunksizes3d, is_optional=.false.)
+    else
+      call register_restart_field(Sfc_restart, sfc%name3(0), var3_p, dimensions=xyz1_time, chunksizes=chunksizes3d, is_optional=.true.)
+    endif
 
     if(reading) then
       do num = 1,sfc%nvar3
         var3_p => sfc%var3(:,:,:,num)
         if ( warm_start ) then
-          call register_restart_field(Sfc_restart, sfc%name3(num), var3_p, dimensions=(/'xaxis_1', 'yaxis_1', 'lsoil  ', 'Time   '/),&
+          call register_restart_field(Sfc_restart, sfc%name3(num), var3_p, dimensions=(/'xaxis_1', 'yaxis_1', 'lsoil_lsm', 'Time   '/),&
                &is_optional=.true.)
         else
           if(sfc%is_lsoil) then
-            call register_restart_field(Sfc_restart, sfc%name3(num), var3_p, dimensions=(/'lat  ', 'lon  ', 'lsoil'/), is_optional=.true.)
+            call register_restart_field(Sfc_restart, sfc%name3(num), var3_p, dimensions=(/'lat  ', 'lon  ', 'lsoil_lsm'/), is_optional=.true.)
           else
             call register_restart_field(Sfc_restart, sfc%name3(num), var3_p, dimensions=xyz2_time,&
                  &is_optional=.true.)
@@ -729,13 +952,13 @@ contains
     elseif(Model%lsm == Model%lsm_ruc) then
       do num = 1,sfc%nvar3
         var3_p => sfc%var3(:,:,:,num)
-        call register_restart_field(Sfc_restart, sfc%name3(num), var3_p, dimensions=xyz1_time)
+        call register_restart_field(Sfc_restart, sfc%name3(num), var3_p, dimensions=xyz1_time, chunksizes=chunksizes3d)
       enddo
       nullify(var3_p)
     else ! writing something other than ruc
       do num = 1,sfc%nvar3
         var3_p => sfc%var3(:,:,:,num)
-        call register_restart_field(Sfc_restart, sfc%name3(num), var3_p, dimensions=xyz2_time)
+        call register_restart_field(Sfc_restart, sfc%name3(num), var3_p, dimensions=xyz2_time, chunksizes=chunksizes3d)
       enddo
       nullify(var3_p)
     endif
@@ -744,14 +967,14 @@ contains
       mand = .not.reading
       do num = sfc%nvar3+1,sfc%nvar3+3
         var3_p1 => sfc%var3sn(:,:,:,num)
-        call register_restart_field(Sfc_restart, sfc%name3(num), var3_p1, dimensions=xyz3_time, is_optional=.not.mand)
+        call register_restart_field(Sfc_restart, sfc%name3(num), var3_p1, dimensions=xyz3_time, chunksizes=chunksizes3d, is_optional=.not.mand)
       enddo
 
       var3_p2 => sfc%var3eq(:,:,:,7)
-      call register_restart_field(Sfc_restart, sfc%name3(7), var3_p2, dimensions=xyz2_time, is_optional=.not.mand)
+      call register_restart_field(Sfc_restart, sfc%name3(7), var3_p2, dimensions=xyz2_time, chunksizes=chunksizes3d, is_optional=.not.mand)
 
       var3_p3 => sfc%var3zn(:,:,:,8)
-      call register_restart_field(Sfc_restart, sfc%name3(8), var3_p3, dimensions=xyz4_time, is_optional=.not.mand)
+      call register_restart_field(Sfc_restart, sfc%name3(8), var3_p3, dimensions=xyz4_time, chunksizes=chunksizes3d, is_optional=.not.mand)
     endif   !mp
 
   end subroutine Sfc_io_register_3d_fields
@@ -1127,14 +1350,14 @@ contains
         enddo
       endif
 
-      if (Model%lsm == Model%lsm_noah .or. (reading .and. .not.warm_start)) then
+      if (reading .and. .not.warm_start) then
         !--- 3D variables
         nt=0
-        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil,sfc%var3,Sfcprop(nb)%stc)
-        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil,sfc%var3,Sfcprop(nb)%smc)
-        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil,sfc%var3,Sfcprop(nb)%slc)
+        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_input,sfc%var3,Sfcprop(nb)%stc)
+        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_input,sfc%var3,Sfcprop(nb)%smc)
+        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_input,sfc%var3,Sfcprop(nb)%slc)
 
-       elseif (Model%lsm == Model%lsm_noahmp) then
+       elseif (Model%lsm == Model%lsm_noah .or. Model%lsm == Model%lsm_noahmp) then
         nt=0
         call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_lsm,sfc%var3,Sfcprop(nb)%tslb)
         call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_lsm,sfc%var3,Sfcprop(nb)%smois)
@@ -1319,6 +1542,157 @@ contains
         enddo
       enddo
     endif
+
+    if (sfc%is_v2_file) then
+
+    if (sfc%var2(i,j,27) < -9990.0_kind_phys) then
+      if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - computing snowd')
+      !$omp parallel do default(shared) private(nb, ix)
+      do nb = 1, Atm_block%nblks
+        do ix = 1, Atm_block%blksz(nb)
+          if (Sfcprop(nb)%fice(ix) > zero) then
+            Sfcprop(nb)%snowd(ix)  = Sfcprop(nb)%snodi(ix)
+          elseif (Sfcprop(nb)%landfrac(ix) > zero) then
+            Sfcprop(nb)%snowd(ix)  = Sfcprop(nb)%snodl(ix)
+          else
+            Sfcprop(nb)%snowd(ix)  = zero
+          endif
+        enddo
+      enddo
+    endif
+
+    if (sfc%var2(i,j,3) < -9990.0_kind_phys) then
+      if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - computing weasd')
+      !$omp parallel do default(shared) private(nb, ix)
+      do nb = 1, Atm_block%nblks
+        do ix = 1, Atm_block%blksz(nb)
+          if (Sfcprop(nb)%fice(ix) > zero) then
+            Sfcprop(nb)%weasd(ix) = Sfcprop(nb)%weasdi(ix)
+          elseif (Sfcprop(nb)%landfrac(ix) > zero) then
+            Sfcprop(nb)%weasd(ix) = Sfcprop(nb)%weasdl(ix)
+          else
+            Sfcprop(nb)%weasd(ix) = zero
+          endif
+        enddo
+      enddo
+    endif
+
+! Needed for first time step in radiation before Noah/NoahMP sets it from look up table.
+! Just use a nominal value.
+    if (sfc%var2(i,j,39) < -9990.0_kind_phys) then
+      if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - computing zorll')
+      !$omp parallel do default(shared) private(nb, ix)
+      do nb = 1, Atm_block%nblks
+        do ix = 1, Atm_block%blksz(nb)
+          if (Sfcprop(nb)%landfrac(ix) > zero) then
+            Sfcprop(nb)%zorll(ix) = 25.0
+          endif
+        enddo
+      enddo
+    endif
+
+    if (sfc%var2(i,j,5) < -9990.0_kind_phys) then
+      if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - computing zorl')
+      !$omp parallel do default(shared) private(nb, ix)
+      do nb = 1, Atm_block%nblks
+        do ix = 1, Atm_block%blksz(nb)
+          if (Sfcprop(nb)%fice(ix) > zero) then
+            Sfcprop(nb)%zorl(ix) = Sfcprop(nb)%zorli(ix)
+          elseif (Sfcprop(nb)%landfrac(ix) > zero) then
+            Sfcprop(nb)%zorl(ix) = Sfcprop(nb)%zorll(ix)
+          else
+            Sfcprop(nb)%zorl(ix) = Sfcprop(nb)%zorlw(ix)
+          endif
+        enddo
+      enddo
+    endif
+
+    if (sfc%var2(i,j,46) < -9990.0_kind_phys) then
+      if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - computing emis_ice')
+      !$omp parallel do default(shared) private(nb, ix)
+      do nb = 1, Atm_block%nblks
+        do ix = 1, Atm_block%blksz(nb)
+          Sfcprop(nb)%emis_ice(ix) = 0.96
+        enddo
+      enddo
+    endif
+
+    if (sfc%var2(i,j,47) < -9990.0_kind_phys .and. Model%lsm /= Model%lsm_ruc) then
+      if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - computing sncovr_ice')
+      !$omp parallel do default(shared) private(nb, ix)
+      do nb = 1, Atm_block%nblks
+        do ix = 1, Atm_block%blksz(nb)
+          !         Sfcprop(nb)%sncovr_ice(ix) = Sfcprop(nb)%sncovr(ix)
+          Sfcprop(nb)%sncovr_ice(ix) = zero
+        enddo
+      enddo
+    endif
+
+    if (Model%use_cice_alb) then
+      if (sfc%var2(i,j,50) < -9990.0_kind_phys) then
+        !$omp parallel do default(shared) private(nb, ix)
+        do nb = 1, Atm_block%nblks
+          do ix = 1, Atm_block%blksz(nb)
+            if (Sfcprop(nb)%oceanfrac(ix) > zero .and. &
+                 Sfcprop(nb)%fice(ix) >= Model%min_seaice) then
+              Sfcprop(nb)%albdirvis_ice(ix) = 0.6_kind_phys
+              Sfcprop(nb)%albdifvis_ice(ix) = 0.6_kind_phys
+              Sfcprop(nb)%albdirnir_ice(ix) = 0.6_kind_phys
+              Sfcprop(nb)%albdifnir_ice(ix) = 0.6_kind_phys
+            endif
+          enddo
+        enddo
+      endif
+
+    endif
+
+    ! Fill in composite tsfc for coldstart runs - must happen after tsfcl is computed
+    compute_tsfc_for_coldstart: if (sfc%var2(i,j,36) < -9990.0_kind_phys) then
+      if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - computing composite tsfc')
+      if(Model%frac_grid) then ! 3-way composite
+        !$omp parallel do default(shared) private(nb, ix, tem, tem1)
+        do nb = 1, Atm_block%nblks
+          do ix = 1, Atm_block%blksz(nb)
+            Sfcprop(nb)%tsfco(ix) = max(con_tice, Sfcprop(nb)%tsfco(ix)) ! this may break restart reproducibility
+            tem1 = one - Sfcprop(nb)%landfrac(ix)
+            tem  = tem1 * Sfcprop(nb)%fice(ix) ! tem = ice fraction wrt whole cell
+            Sfcprop(nb)%tsfc(ix) = Sfcprop(nb)%tsfcl(ix) * Sfcprop(nb)%landfrac(ix) &
+                 + Sfcprop(nb)%tisfc(ix) * tem                      &
+                 + Sfcprop(nb)%tsfco(ix) * (tem1-tem)
+          enddo
+        enddo
+      else
+        !$omp parallel do default(shared) private(nb, ix, tem)
+        do nb = 1, Atm_block%nblks
+          do ix = 1, Atm_block%blksz(nb)
+            if (Sfcprop(nb)%slmsk(ix) == 1) then
+              Sfcprop(nb)%tsfc(ix) = Sfcprop(nb)%tsfcl(ix)
+              if (Sfcprop(nb)%tsfc(ix) < -99 .or. Sfcprop(nb)%tsfc(ix) > 999.) print*,'bad tsfc land ',nb,ix,Sfcprop(nb)%tsfcl(ix)
+            elseif(Sfcprop(nb)%fice(ix) > 0.0)then
+              Sfcprop(nb)%tsfc(ix) = Sfcprop(nb)%tisfc(ix)
+              if (Sfcprop(nb)%tsfc(ix) < -99 .or. Sfcprop(nb)%tsfc(ix) > 999.) print*,'bad tsfc ice  ',nb,ix,Sfcprop(nb)%tisfc(ix)
+            else
+              Sfcprop(nb)%tsfc(ix) = Sfcprop(nb)%tsfco(ix)
+              if (Sfcprop(nb)%tsfc(ix) < -99 .or. Sfcprop(nb)%tsfc(ix) > 999.) print*,'bad tsfc water ',nb,ix,Sfcprop(nb)%tsfco(ix)
+            endif
+          enddo
+        enddo
+      endif
+    endif compute_tsfc_for_coldstart
+
+    if (sfc%var2(i,j,sfc%nvar2m) < -9990.0_kind_phys) then
+      if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - computing zorlwav')
+      !$omp parallel do default(shared) private(nb, ix)
+      do nb = 1, Atm_block%nblks
+        do ix = 1, Atm_block%blksz(nb)
+          Sfcprop(nb)%zorlwav(ix) = Sfcprop(nb)%zorl(ix) !--- compute zorlwav from existing variables
+        enddo
+      enddo
+    endif
+
+
+    else ! old verion of coldstart file
+
 
     if (sfc%var2(i,j,34) < -9990.0_kind_phys) then
       if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - computing snodl')
@@ -1514,6 +1888,8 @@ contains
       enddo
     endif
 
+    endif ! check on which version of the surface file.
+
   end subroutine Sfc_io_apply_safeguards
 
   !>@ destructor for Sfc_io_data_type
@@ -1627,8 +2003,8 @@ contains
         call create_3d_field_and_add_to_bundle(temp_r3d, trim(sfc%name3(num)), "zaxis_1", zaxis_1, trim(outputfile), grid, bundle)
       enddo
     else if (Model%lsm == Model%lsm_noah) then
-      allocate(zaxis_2(Model%lsoil))
-      zaxis_2 = (/ (i, i=1,Model%lsoil) /)
+      allocate(zaxis_2(Model%lsoil_lsm))
+      zaxis_2 = (/ (i, i=1,Model%lsoil_lsm) /)
       do num = 1,sfc%nvar3
         temp_r3d => sfc%var3(:,:,:,num)
         call create_3d_field_and_add_to_bundle(temp_r3d, trim(sfc%name3(num)), "zaxis_2", zaxis_2, trim(outputfile), grid, bundle)
