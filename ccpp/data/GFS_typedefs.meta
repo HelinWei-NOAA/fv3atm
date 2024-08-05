@@ -1792,7 +1792,7 @@
   dimensions = (horizontal_loop_extent,vertical_dimension_of_soil_internal_to_land_surface_scheme)
   type = real
   kind = kind_phys
-  active = (control_for_land_surface_scheme == identifier_for_ruc_land_surface_scheme)
+  active = (control_for_land_surface_scheme == identifier_for_ruc_land_surface_scheme .or. control_for_land_surface_scheme == identifier_for_noahmp_land_surface_scheme)
 [keepsmfr]
   standard_name = volume_fraction_of_frozen_soil_moisture_for_land_surface_model
   long_name = volume fraction of frozen soil moisture for lsm
@@ -1808,7 +1808,7 @@
   dimensions = (horizontal_loop_extent,vertical_dimension_of_soil_internal_to_land_surface_scheme)
   type = real
   kind = kind_phys
-  active = (control_for_land_surface_scheme == identifier_for_ruc_land_surface_scheme)
+  active = (control_for_land_surface_scheme == identifier_for_ruc_land_surface_scheme .or. control_for_land_surface_scheme == identifier_for_noahmp_land_surface_scheme)
 [tslb]
   standard_name = soil_temperature_for_land_surface_model
   long_name = soil temperature for land surface model
@@ -1816,7 +1816,7 @@
   dimensions = (horizontal_loop_extent,vertical_dimension_of_soil_internal_to_land_surface_scheme)
   type = real
   kind = kind_phys
-  active = (control_for_land_surface_scheme == identifier_for_ruc_land_surface_scheme)
+  active = (control_for_land_surface_scheme == identifier_for_ruc_land_surface_scheme .or. control_for_land_surface_scheme == identifier_for_noahmp_land_surface_scheme)
 [clw_surf_land]
   standard_name = cloud_condensed_water_mixing_ratio_at_surface_over_land
   long_name = moist cloud water mixing ratio at surface over land
@@ -4922,12 +4922,19 @@
   dimensions = ()
   type = integer
   active = (control_for_lake_surface_scheme == 2)
-[lsoil]
+[lsoil_input]
   standard_name = vertical_dimension_of_soil
   long_name = number of soil layers
   units = count
   dimensions = ()
   type = integer
+[zsi]
+  standard_name = depth_of_soil_layers_input
+  long_name = depth of soil levels for the input initial soil
+  units = m
+  dimensions = (vertical_dimension_of_soil)
+  type = real
+  kind = kind_phys
 [lsoil_lsm]
   standard_name = vertical_dimension_of_soil_internal_to_land_surface_scheme
   long_name = number of soil layers internal to land surface model

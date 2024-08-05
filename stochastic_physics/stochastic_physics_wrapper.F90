@@ -148,11 +148,11 @@ module stochastic_physics_wrapper_mod
       end if
       if ( GFS_Control%lndp_type == 2 ) then
           allocate(sfc_wts(1:nblks,maxblk,1:GFS_Control%n_var_lndp))
-          if ( (GFS_Control%lsm == GFS_Control%lsm_noah) .or. (GFS_Control%lsm == GFS_Control%lsm_noahmp)) then
-            lsoil = GFS_Control%lsoil
-          elseif (GFS_Control%lsm == GFS_Control%lsm_ruc) then
+!         if ( (GFS_Control%lsm == GFS_Control%lsm_noah) .or. (GFS_Control%lsm == GFS_Control%lsm_noahmp)) then
+!           lsoil = GFS_Control%lsoil
+!         elseif (GFS_Control%lsm == GFS_Control%lsm_ruc) then
             lsoil = GFS_Control%lsoil_lsm
-          endif
+!         endif
           allocate(smc   (1:nblks, maxblk, lsoil))
           do v = 1,GFS_Control%n_var_lndp
             select case (trim(GFS_Control%lndp_var_list(v)))

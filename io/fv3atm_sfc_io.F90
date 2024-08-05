@@ -217,9 +217,11 @@ contains
       ! RUC LSM, but tiice in the initial conditions will only have two vertical layers
       allocate(sfc%var3ice(nx,ny,Model%kice))
 
-      if (Model%lsm == Model%lsm_noah .or. Model%lsm == Model%lsm_noahmp .or. (.not.warm_start)) then
-        allocate(sfc%var3(nx,ny,Model%lsoil,sfc%nvar3))
-      elseif (Model%lsm == Model%lsm_ruc) then
+!     if (Model%lsm == Model%lsm_noah .or. (.not.warm_start)) then
+      if (.not.warm_start) then
+        allocate(sfc%var3(nx,ny,Model%lsoil_input,sfc%nvar3))
+       else
+!      elseif (Model%lsm == Model%lsm_noahmp .or. Model%lsm == Model%lsm_ruc) then
         allocate(sfc%var3(nx,ny,Model%lsoil_lsm,sfc%nvar3))
       endif
 
@@ -229,8 +231,8 @@ contains
 
       if (Model%lsm == Model%lsm_noahmp) then
         allocate(sfc%var3sn(nx,ny,-2:0,4:6))
-        allocate(sfc%var3eq(nx,ny,1:4,7:7))
-        allocate(sfc%var3zn(nx,ny,-2:4,8:8))
+        allocate(sfc%var3eq(nx,ny,1:Model%lsoil_lsm,7:7))
+        allocate(sfc%var3zn(nx,ny,-2:Model%lsoil_lsm,8:8))
 
         sfc%var3sn = -9999.0_kind_phys
         sfc%var3eq = -9999.0_kind_phys
@@ -259,25 +261,27 @@ contains
     endif
 
     if(.not.warm_start .and. reading) then
-      if( variable_exists(Sfc_restart,"lsoil") ) then
+      if( variable_exists(Sfc_restart,"lsoil_lsm") ) then
         if(reading) then
           sfc%is_lsoil=.true.
         endif
         call register_axis(Sfc_restart, 'lon', 'X')
         call register_axis(Sfc_restart, 'lat', 'Y')
-        call register_axis(Sfc_restart, 'lsoil', dimension_length=Model%lsoil)
+        call register_axis(Sfc_restart, 'lsoil_lsm', dimension_length=Model%lsoil_lsm)
       else
         call register_axis(Sfc_restart, 'xaxis_1', 'X')
         call register_axis(Sfc_restart, 'yaxis_1', 'Y')
-        call register_axis(Sfc_restart, 'zaxis_1', dimension_length=4)
+        call register_axis(Sfc_restart, 'zaxis_1', dimension_length=Model%lsoil_lsm)
         call register_axis(Sfc_restart, 'Time', 1)
       end if
     else
       call register_axis(Sfc_restart, 'xaxis_1', 'X')
       call register_axis(Sfc_restart, 'yaxis_1', 'Y')
       call register_axis(Sfc_restart, 'zaxis_1', dimension_length=Model%kice)
-      if (Model%lsm == Model%lsm_noah .or. Model%lsm == Model%lsm_noahmp) then
-        call register_axis(Sfc_restart, 'zaxis_2', dimension_length=Model%lsoil)
+      if (Model%lsm == Model%lsm_noah) then
+        call register_axis(Sfc_restart, 'zaxis_2', dimension_length=Model%lsoil_lsm)
+      else if (Model%lsm == Model%lsm_noahmp) then
+        call register_axis(Sfc_restart, 'zaxis_2', dimension_length=Model%lsoil_lsm)
       else if(Model%lsm == Model%lsm_ruc .and. reading) then
         call register_axis(Sfc_restart, 'zaxis_2', dimension_length=Model%lsoil_lsm)
         ! The RUC only ever writes zaxis_1, which is combined soil/ice
@@ -296,7 +300,7 @@ contains
       endif
       if(Model%lsm == Model%lsm_noahmp) then
         call register_axis(Sfc_restart, 'zaxis_3', dimension_length=3)
-        call register_axis(Sfc_restart, 'zaxis_4', dimension_length=7)
+        call register_axis(Sfc_restart, 'zaxis_4', dimension_length=3+Model%lsoil_lsm)
       end if
       call register_axis(Sfc_restart, 'Time', unlimited)
     endif
@@ -334,11 +338,23 @@ contains
     call write_data(Sfc_restart, 'zaxis_1', buffer)
     deallocate(buffer)
 
+
     if (Model%lsm == Model%lsm_noah .or. Model%lsm == Model%lsm_noahmp) then
       call register_field(Sfc_restart, 'zaxis_2', axis_type, (/'zaxis_2'/))
       call register_variable_attribute(Sfc_restart, 'zaxis_2', 'cartesian_axis', 'Z', str_len=1)
-      allocate( buffer(Model%lsoil) )
-      do i=1, Model%lsoil
+      allocate( buffer(Model%lsoil_lsm) )
+      do i=1, Model%lsoil_lsm
+        buffer(i)=i
+      end do
+      call write_data(Sfc_restart, 'zaxis_2', buffer)
+      deallocate(buffer)
+    endif
+
+    if (Model%lsm == Model%lsm_noahmp) then
+      call register_field(Sfc_restart, 'zaxis_2', 'double', (/'zaxis_2'/))
+      call register_variable_attribute(Sfc_restart, 'zaxis_2', 'cartesian_axis', 'Z', str_len=1)
+      allocate( buffer(Model%lsoil_lsm) )
+      do i=1, Model%lsoil_lsm
         buffer(i)=i
       end do
       call write_data(Sfc_restart, 'zaxis_2', buffer)
@@ -357,8 +373,8 @@ contains
 
       call register_field(Sfc_restart, 'zaxis_4', axis_type, (/'zaxis_4'/))
       call register_variable_attribute(Sfc_restart, 'zaxis_4', 'cartesian_axis' ,'Z', str_len=1)
-      allocate(buffer(7))
-      do i=1, 7
+      allocate(buffer(3+Model%lsoil_lsm))
+      do i=1, 3+Model%lsoil_lsm
         buffer(i)=i
       end do
       call write_data(Sfc_restart, 'zaxis_4', buffer)
@@ -378,7 +394,7 @@ contains
     integer :: nt
 
     !--- names of the 3d variables to save
-    if (Model%lsm == Model%lsm_noah .or. Model%lsm == Model%lsm_noahmp .or. (.not.warm_start)) then
+    if (Model%lsm == Model%lsm_noah .or. (.not.warm_start)) then
       !--- names of the 3D variables to save
       sfc%name3(1) = 'stc'
       sfc%name3(2) = 'smc'
@@ -389,7 +405,16 @@ contains
         sfc%name3(6) = 'tsnoxy'
         sfc%name3(7) = 'smoiseq'
         sfc%name3(8) = 'zsnsoxy'
-      endif
+       endif
+     else if (Model%lsm == Model%lsm_noahmp) then
+        sfc%name3(1) = 'tslb'
+        sfc%name3(2) = 'smois'
+        sfc%name3(3) = 'sh2o'
+        sfc%name3(4) = 'snicexy'
+        sfc%name3(5) = 'snliqxy'
+        sfc%name3(6) = 'tsnoxy'
+        sfc%name3(7) = 'smoiseq'
+        sfc%name3(8) = 'zsnsoxy'
     else if (Model%lsm == Model%lsm_ruc) then
       !--- names of the 3D variables to save
       sfc%name3(1) = 'tslb'
@@ -913,11 +938,11 @@ contains
       do num = 1,sfc%nvar3
         var3_p => sfc%var3(:,:,:,num)
         if ( warm_start ) then
-          call register_restart_field(Sfc_restart, sfc%name3(num), var3_p, dimensions=(/'xaxis_1', 'yaxis_1', 'lsoil  ', 'Time   '/),&
+          call register_restart_field(Sfc_restart, sfc%name3(num), var3_p, dimensions=(/'xaxis_1', 'yaxis_1', 'lsoil_lsm', 'Time   '/),&
                &is_optional=.true.)
         else
           if(sfc%is_lsoil) then
-            call register_restart_field(Sfc_restart, sfc%name3(num), var3_p, dimensions=(/'lat  ', 'lon  ', 'lsoil'/), is_optional=.true.)
+            call register_restart_field(Sfc_restart, sfc%name3(num), var3_p, dimensions=(/'lat  ', 'lon  ', 'lsoil_lsm'/), is_optional=.true.)
           else
             call register_restart_field(Sfc_restart, sfc%name3(num), var3_p, dimensions=xyz2_time,&
                  &is_optional=.true.)
@@ -1325,14 +1350,18 @@ contains
         enddo
       endif
 
-      if (Model%lsm == Model%lsm_noah .or. Model%lsm == Model%lsm_noahmp .or. (reading .and. .not.warm_start)) then
+      if (reading .and. .not.warm_start) then
         !--- 3D variables
         nt=0
-        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil,sfc%var3,Sfcprop(nb)%stc)
-        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil,sfc%var3,Sfcprop(nb)%smc)
-        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil,sfc%var3,Sfcprop(nb)%slc)
+        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_input,sfc%var3,Sfcprop(nb)%stc)
+        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_input,sfc%var3,Sfcprop(nb)%smc)
+        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_input,sfc%var3,Sfcprop(nb)%slc)
 
-        if (Model%lsm == Model%lsm_noahmp) then
+       elseif (Model%lsm == Model%lsm_noah .or. Model%lsm == Model%lsm_noahmp) then
+        nt=0
+        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_lsm,sfc%var3,Sfcprop(nb)%tslb)
+        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_lsm,sfc%var3,Sfcprop(nb)%smois)
+        call GFS_Data_transfer(reading,ii1,jj1,isc,jsc,nt,1,Model%lsoil_lsm,sfc%var3,Sfcprop(nb)%sh2o)
 
           ! These use weird indexing which is lost during a Fortran
           ! subroutine call, so we use loops instead:
@@ -1360,14 +1389,14 @@ contains
             enddo
 
             nt=nt+1
-            do lsoil = 1, 4
+            do lsoil = 1, Model%lsoil_lsm
               do ix = 1, Atm_block%blksz(nb)
                 Sfcprop(nb)%smoiseq(ix,lsoil)  = sfc%var3eq(ii1(ix),jj1(ix),lsoil,nt)
               enddo
             enddo
 
             nt=nt+1
-            do lsoil = -2, 4
+            do lsoil = -2, Model%lsoil_lsm
               do ix = 1, Atm_block%blksz(nb)
                 Sfcprop(nb)%zsnsoxy(ix,lsoil)  = sfc%var3zn(ii1(ix),jj1(ix),lsoil,nt)
               enddo
@@ -1397,20 +1426,20 @@ contains
             enddo
 
             nt=nt+1
-            do lsoil = 1,Model%lsoil
+            do lsoil = 1,Model%lsoil_lsm
               do ix = 1, Atm_block%blksz(nb)
                 sfc%var3eq(ii1(ix),jj1(ix),lsoil,nt)  = Sfcprop(nb)%smoiseq(ix,lsoil)
               enddo
             enddo
 
             nt=nt+1
-            do lsoil = -2,4
+            do lsoil = -2,Model%lsoil_lsm
               do ix = 1, Atm_block%blksz(nb)
                 sfc%var3zn(ii1(ix),jj1(ix),lsoil,nt)  = Sfcprop(nb)%zsnsoxy(ix,lsoil)
               enddo
             enddo
           endif
-        endif
+!       endif
       else if (Model%lsm == Model%lsm_ruc) then
         !--- 3D variables
         nt=0
@@ -1973,9 +2002,9 @@ contains
         temp_r3d => sfc%var3(:,:,:,num)
         call create_3d_field_and_add_to_bundle(temp_r3d, trim(sfc%name3(num)), "zaxis_1", zaxis_1, trim(outputfile), grid, bundle)
       enddo
-    else
-      allocate(zaxis_2(Model%lsoil))
-      zaxis_2 = (/ (i, i=1,Model%lsoil) /)
+    else if (Model%lsm == Model%lsm_noah) then
+      allocate(zaxis_2(Model%lsoil_lsm))
+      zaxis_2 = (/ (i, i=1,Model%lsoil_lsm) /)
       do num = 1,sfc%nvar3
         temp_r3d => sfc%var3(:,:,:,num)
         call create_3d_field_and_add_to_bundle(temp_r3d, trim(sfc%name3(num)), "zaxis_2", zaxis_2, trim(outputfile), grid, bundle)
@@ -1984,6 +2013,14 @@ contains
     endif
 
     if (Model%lsm == Model%lsm_noahmp) then
+      allocate(zaxis_2(Model%lsoil_lsm))
+      zaxis_2 = (/ (i, i=1,Model%lsoil_lsm) /)
+      do num = 1,sfc%nvar3
+        temp_r3d => sfc%var3(:,:,:,num)
+        call create_3d_field_and_add_to_bundle(temp_r3d, trim(sfc%name3(num)), "zaxis_2", zaxis_2, trim(outputfile), grid, bundle)
+      enddo
+      deallocate(zaxis_2)
+
       allocate(zaxis_3(3))
       zaxis_3 = (/ (i, i=1,3) /)
 
@@ -1992,14 +2029,14 @@ contains
         call create_3d_field_and_add_to_bundle(temp_r3d, trim(sfc%name3(num)), "zaxis_3", zaxis_3, trim(outputfile), grid, bundle)
       enddo
 
-      allocate(zaxis_2(Model%lsoil))
-      zaxis_2 = (/ (i, i=1,Model%lsoil) /)
+      allocate(zaxis_2(Model%lsoil_lsm))
+      zaxis_2 = (/ (i, i=1,Model%lsoil_lsm) /)
 
       temp_r3d => sfc%var3eq(:,:,:,7)
       call create_3d_field_and_add_to_bundle(temp_r3d, trim(sfc%name3(7)), "zaxis_2", zaxis_2, trim(outputfile), grid, bundle)
 
-      allocate(zaxis_4(7))
-      zaxis_4 = (/ (i, i=1,7) /)
+      allocate(zaxis_4(3+Model%lsoil_lsm))
+      zaxis_4 = (/ (i, i=1,3+Model%lsoil_lsm) /)
 
       temp_r3d => sfc%var3zn(:,:,:,8)
       call create_3d_field_and_add_to_bundle(temp_r3d, trim(sfc%name3(8)), "zaxis_4", zaxis_4, trim(outputfile), grid, bundle)
